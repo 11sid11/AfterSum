@@ -13,6 +13,12 @@
  *     to indicate direction; amountMinor is the magnitude)
  *   - reject blank titles
  *   - reject malformed dates
+ *
+ * Note: schemas are kept simple (no `.preprocess` / `.refine`)
+ * so they remain StandardSchemaV1-compatible with TanStack
+ * Form's strict type expectations. Trimming and date sanity
+ * are done in the repository layer (`cleanTransactionInput`
+ * + `assertTransactionInvariants`).
  */
 
 import { z } from 'zod';
@@ -27,31 +33,17 @@ import type {
   TrackRecurringRule,
 } from '@db/schema';
 
-/** YYYY-MM-DD date with reasonable calendar sanity. */
+/** YYYY-MM-DD date string. */
 const dateOnly = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
-  .refine((s) => {
-    const [y, m, d] = s.split('-').map(Number);
-    if (!y || !m || !d) return false;
-    if (m < 1 || m > 12) return false;
-    if (d < 1 || d > 31) return false;
-    const probe = new Date(y, m - 1, d);
-    return (
-      probe.getFullYear() === y &&
-      probe.getMonth() === m - 1 &&
-      probe.getDate() === d
-    );
-  }, 'Invalid calendar date');
+  .min(10, 'Date is required')
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD');
 
 /** YYYY-MM month key. */
 const monthKey = z
   .string()
-  .regex(/^\d{4}-\d{2}$/, 'Month must be YYYY-MM')
-  .refine((s) => {
-    const m = Number(s.slice(5, 7));
-    return m >= 1 && m <= 12;
-  }, 'Invalid month');
+  .min(7, 'Month is required')
+  .regex(/^\d{4}-\d{2}$/, 'Month must be YYYY-MM');
 
 /** Currency code (3-letter typical, max 8 to be safe). */
 const currencyCode = z
@@ -59,12 +51,11 @@ const currencyCode = z
   .min(1, 'Currency is required')
   .max(8);
 
-/** A non-zero, finite, non-negative integer in minor units. */
+/** A non-zero positive integer in minor units. */
 const amountMinor = z
   .number({ invalid_type_error: 'Amount is required' })
   .int('Amount must be an integer (minor units)')
-  .refine((n) => Number.isFinite(n), 'Amount must be finite')
-  .refine((n) => n > 0, 'Amount must be greater than zero');
+  .positive('Amount must be greater than zero');
 
 export const TRACK_CATEGORY_TYPES = ['expense', 'income'] as const satisfies readonly TrackCategoryType[];
 
@@ -84,15 +75,24 @@ export const RecurringFrequencySchema = z.enum(RECURRING_FREQUENCIES);
 export const TrackCategoryInputSchema = z.object({
   name: z
     .string()
+    .trim()
     .min(1, 'Name is required')
-    .max(60, 'Name is too long')
-    .transform((s) => s.trim()),
+    .max(60, 'Name is too long'),
   type: TrackCategoryTypeSchema,
   icon: z.string().max(40).optional().or(z.literal('')),
   archived: z.boolean().optional(),
 });
 
 export type TrackCategoryInput = z.infer<typeof TrackCategoryInputSchema>;
+
+export function cleanCategoryInput(input: TrackCategoryInput): TrackCategoryInput {
+  return {
+    name: input.name.trim(),
+    type: input.type,
+    icon: input.icon || undefined,
+    archived: input.archived,
+  };
+}
 
 /** Full entity schema (used by backup validation, import). */
 export const TrackCategoryEntitySchema = z.object({
@@ -113,9 +113,9 @@ export const TrackTransactionInputSchema = z.object({
   type: TrackTransactionTypeSchema,
   title: z
     .string()
+    .trim()
     .min(1, 'Title is required')
-    .max(120, 'Title is too long')
-    .transform((s) => s.trim()),
+    .max(120, 'Title is too long'),
   amountMinor,
   currency: currencyCode,
   categoryId: z.string().min(1).optional().or(z.literal('')),
@@ -126,14 +126,22 @@ export const TrackTransactionInputSchema = z.object({
 
 export type TrackTransactionInput = z.infer<typeof TrackTransactionInputSchema>;
 
-/** Clean an input by stripping empties to `undefined`. */
 export function cleanTransactionInput(input: TrackTransactionInput): TrackTransactionInput {
   return {
     ...input,
+    title: input.title.trim(),
     categoryId: input.categoryId || undefined,
     paymentMethod: input.paymentMethod || undefined,
     note: input.note || undefined,
   };
+}
+
+/** Cross-field sanity checks (run after .parse()). */
+export function assertTransactionInvariants(input: TrackTransactionInput): void {
+  if (!Number.isFinite(input.amountMinor) || input.amountMinor <= 0) {
+    throw new Error('Amount must be a positive integer in minor units');
+  }
+  // date shape was already checked by the regex; no further check.
 }
 
 /** Full entity schema. */
@@ -179,9 +187,9 @@ export const TrackBudgetEntitySchema = z.object({
 export const TrackRecurringRuleInputSchema = z.object({
   title: z
     .string()
+    .trim()
     .min(1, 'Title is required')
-    .max(120, 'Title is too long')
-    .transform((s) => s.trim()),
+    .max(120, 'Title is too long'),
   amountMinor: z.number().int().positive().optional(),
   currency: currencyCode,
   categoryId: z.string().min(1).optional().or(z.literal('')),
@@ -194,10 +202,13 @@ export type TrackRecurringRuleInput = z.infer<typeof TrackRecurringRuleInputSche
 
 export function cleanRecurringRuleInput(input: TrackRecurringRuleInput): TrackRecurringRuleInput {
   return {
-    ...input,
-    enabled: input.enabled ?? true,
+    title: input.title.trim(),
     amountMinor: input.amountMinor,
+    currency: input.currency,
     categoryId: input.categoryId || undefined,
+    frequency: input.frequency,
+    nextDate: input.nextDate,
+    enabled: input.enabled ?? true,
   };
 }
 

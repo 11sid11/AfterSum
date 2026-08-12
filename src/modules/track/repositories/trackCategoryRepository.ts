@@ -28,25 +28,29 @@ function clean(input: Partial<TrackCategoryInput>): Partial<TrackCategoryInput> 
 }
 
 export const trackCategoryRepository = {
-  /** All active (non-deleted, non-archived) categories, sorted by name. */
-  async listActive(type?: 'expense' | 'income'): Promise<TrackCategory[]> {
-    const all = await getDB().trackCategories.toArray();
-    return all
-      .filter((c) => !c.deletedAt && !c.archived)
-      .filter((c) => (type ? c.type === type : true))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  },
-
-  /** All categories including archived ones. */
-  async listAll(type?: 'expense' | 'income'): Promise<TrackCategory[]> {
+  /**
+   * All non-deleted categories. Pass `includeArchived = true`
+   * to also include archived categories. Optionally filter
+   * by `type`.
+   */
+  async listActive(
+    type?: 'expense' | 'income',
+    includeArchived = false,
+  ): Promise<TrackCategory[]> {
     const all = await getDB().trackCategories.toArray();
     return all
       .filter((c) => !c.deletedAt)
+      .filter((c) => (includeArchived ? true : !c.archived))
       .filter((c) => (type ? c.type === type : true))
       .sort((a, b) => {
         if (a.archived !== b.archived) return a.archived ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
+  },
+
+  /** Alias of `listActive(undefined, true)` — all categories including archived. */
+  async listAll(type?: 'expense' | 'income'): Promise<TrackCategory[]> {
+    return this.listActive(type, true);
   },
 
   async get(id: string): Promise<TrackCategory | undefined> {

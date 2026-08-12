@@ -1,5 +1,11 @@
-import { PagePlaceholder } from '@/routes/PagePlaceholder';
+/**
+ * Track landing page — renders the current month.
+ */
+
+import { todayDateOnly, toMonthKey } from '@shared/dates';
+import { TrackMonthView } from '@modules/track/components/TrackMonthView';
 
 export function TrackPage() {
-  return <PagePlaceholder title="Track" hint="Personal monthly spending." />;
+  const month = toMonthKey(new Date(todayDateOnly()));
+  return <TrackMonthView month={month} />;
 }

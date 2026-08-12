@@ -10,6 +10,7 @@
 import { getDB } from '@db/database';
 import { APP_VERSION, SCHEMA_VERSION } from '@app/constants';
 import { nowISO } from '@shared/dates';
+import { markDirty } from '@sync/status';
 import type {
   Person,
   TrackTransaction,
@@ -186,7 +187,6 @@ export async function restoreBackup(backup: Backup): Promise<void> {
     },
   );
   // Mark dirty for sync.
-  const { markDirty } = await import('@sync/status');
   await markDirty();
 }
 

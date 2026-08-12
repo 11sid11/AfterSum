@@ -8,7 +8,7 @@
 
 import { Link } from '@tanstack/react-router';
 import { Money } from '@components/ui';
-import type { SplitExpense, Person } from '@db/schema';
+import type { SplitExpense } from '@db/schema';
 import { formatHumanDate } from '@shared/dates';
 
 interface ExpenseListItemProps {
@@ -53,10 +53,4 @@ export function ExpenseListItem({ expense, payerNames, participantNames }: Expen
       </Link>
     </li>
   );
-}
-
-export function usePersonNameResolver(people: Person[] | undefined) {
-  const map = new Map<string, string>();
-  if (people) for (const p of people) map.set(p.id, p.name);
-  return map;
 }
