@@ -11,3 +11,4 @@ export { BalanceText } from './BalanceText';
 export { Toggle } from './Toggle';
 export { Spinner, Skeleton } from './Tabs';
 export { ToastProvider, useToast } from './Toast';
+export { Modal } from './Modal';
