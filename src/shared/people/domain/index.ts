@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { Person } from '@db/schema';
 
 export const PersonSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).optional(),
   name: z.string().min(1, 'Name is required').max(120),
   phone: z.string().max(40).optional().or(z.literal('')),
   email: z.string().email().max(200).optional().or(z.literal('')),

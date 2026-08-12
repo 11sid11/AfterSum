@@ -1,5 +1,5 @@
-import { PagePlaceholder } from '@/routes/PagePlaceholder';
+import { OverviewDashboard } from '@overview/components/OverviewDashboard';
 
 export function OverviewPage() {
-  return <PagePlaceholder title="Overview" hint="Module summaries, recent activity, person exposure." />;
+  return <OverviewDashboard />;
 }
