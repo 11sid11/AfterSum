@@ -5,6 +5,9 @@ import path from 'node:path';
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages serves this app at /AfterSum/. Override with
+  // VITE_BASE_PATH at build time when deploying elsewhere.
+  base: process.env.VITE_BASE_PATH || '/AfterSum/',
   plugins: [
     react(),
     VitePWA({
@@ -18,8 +21,8 @@ export default defineConfig({
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: process.env.VITE_BASE_PATH || '/AfterSum/',
+        start_url: process.env.VITE_BASE_PATH || '/AfterSum/',
         icons: [
           {
             src: 'pwa-192x192.png',
