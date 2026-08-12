@@ -7,7 +7,6 @@
 
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import { useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import {
@@ -26,11 +25,11 @@ import {
 import { useAppSettings } from '@shared/settings/useSettings';
 import { useTrackTransaction } from '@modules/track/queries';
 import { trackTransactionRepository } from '@modules/track/repositories/trackTransactionRepository';
-import { TrackTransactionInputSchema } from '@modules/track/domain/validation';
-import { formatHumanDateTime } from '@shared/dates';
+import { TrackTransactionInputSchema, type TrackTransactionInput } from '@modules/track/domain/validation';
+import { formatHumanDateTime, todayDateOnly } from '@shared/dates';
 
 const FormSchema = TrackTransactionInputSchema;
-type FormValues = z.infer<typeof FormSchema>;
+type FormValues = TrackTransactionInput;
 
 export function TrackTransactionPage() {
   const { transactionId } = useParams({ strict: false }) as { transactionId?: string };
@@ -40,6 +39,58 @@ export function TrackTransactionPage() {
   const transaction = useTrackTransaction(transactionId);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Always call useForm (rules-of-hooks) with safe defaults. We
+  // remount the form once the transaction has loaded so the
+  // defaults take effect.
+  const fallbackValues: FormValues = {
+    type: 'expense',
+    title: '',
+    amountMinor: 0,
+    currency: settings?.defaultCurrency ?? 'INR',
+    categoryId: '',
+    paymentMethod: undefined,
+    date: todayDateOnly(),
+    note: '',
+  };
+  const initialValues: FormValues = transaction
+    ? {
+        type: transaction.type,
+        title: transaction.title,
+        amountMinor: transaction.amountMinor,
+        currency: transaction.currency,
+        categoryId: transaction.categoryId ?? '',
+        paymentMethod: transaction.paymentMethod,
+        date: transaction.date,
+        note: transaction.note ?? '',
+      }
+    : fallbackValues;
+
+  const form = useForm({
+    defaultValues: initialValues,
+    validators: { onChange: FormSchema },
+    onSubmit: async ({ value }) => {
+      if (!transaction) return;
+      setSubmitting(true);
+      try {
+        await trackTransactionRepository.update(transaction.id, {
+          type: value.type,
+          title: value.title.trim(),
+          amountMinor: value.amountMinor,
+          currency: value.currency,
+          categoryId: value.categoryId || undefined,
+          paymentMethod: value.paymentMethod,
+          date: value.date,
+          note: value.note || undefined,
+        });
+        toast.show('Saved');
+        navigate({ to: '/track' });
+      } catch (err) {
+        toast.show(err instanceof Error ? err.message : 'Could not save', { variant: 'error' });
+        setSubmitting(false);
+      }
+    },
+  });
 
   if (!settings) {
     return (
@@ -77,42 +128,6 @@ export function TrackTransactionPage() {
       </div>
     );
   }
-
-  const initialValues: FormValues = {
-    type: transaction.type,
-    title: transaction.title,
-    amountMinor: transaction.amountMinor,
-    currency: transaction.currency,
-    categoryId: transaction.categoryId ?? '',
-    paymentMethod: transaction.paymentMethod,
-    date: transaction.date,
-    note: transaction.note ?? '',
-  };
-
-  const form = useForm({
-    defaultValues: initialValues,
-    validators: { onChange: FormSchema },
-    onSubmit: async ({ value }) => {
-      setSubmitting(true);
-      try {
-        await trackTransactionRepository.update(transaction.id, {
-          type: value.type,
-          title: value.title.trim(),
-          amountMinor: value.amountMinor,
-          currency: value.currency,
-          categoryId: value.categoryId || undefined,
-          paymentMethod: value.paymentMethod,
-          date: value.date,
-          note: value.note || undefined,
-        });
-        toast.show('Saved');
-        navigate({ to: '/track' });
-      } catch (err) {
-        toast.show(err instanceof Error ? err.message : 'Could not save', { variant: 'error' });
-        setSubmitting(false);
-      }
-    },
-  });
 
   const onDelete = async () => {
     if (deleting) return;

@@ -30,19 +30,11 @@ export function TrackBudgetPage() {
   const summary = useTrackMonthlySummary(requested);
   const [draftAmount, setDraftAmount] = useState<number | undefined>(budget?.amountMinor);
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   const form = useForm({
     defaultValues: {
       month: requested,
       amountMinor: budget?.amountMinor ?? 0,
-      currency: budget?.currency ?? settings.defaultCurrency,
+      currency: budget?.currency ?? settings?.defaultCurrency ?? 'INR',
     },
     validators: { onChange: TrackBudgetInputSchema },
     onSubmit: async ({ value }) => {
@@ -61,6 +53,14 @@ export function TrackBudgetPage() {
       }
     },
   });
+
+  if (!settings) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   const onDelete = async () => {
     if (!budget) return;

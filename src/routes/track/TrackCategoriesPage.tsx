@@ -10,7 +10,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import { ArrowLeft, Plus, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { Card, Button, Input, useToast, Spinner } from '@components/ui';
 import { trackCategoryRepository } from '@modules/track/repositories/trackCategoryRepository';
@@ -18,10 +17,11 @@ import { useTrackCategories } from '@modules/track/queries';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDB } from '@db/database';
 import type { TrackCategoryType, TrackCategory } from '@db/schema';
-import { TrackCategoryInputSchema } from '@modules/track/domain/validation';
+import { TrackCategoryInputSchema, type TrackCategoryInput } from '@modules/track/domain/validation';
+
+type AddFormValues = Pick<TrackCategoryInput, 'name' | 'type' | 'icon'>;
 
 const AddFormSchema = TrackCategoryInputSchema.pick({ name: true, type: true, icon: true });
-type AddFormValues = z.infer<typeof AddFormSchema>;
 
 export function TrackCategoriesPage() {
   const navigate = useNavigate();
@@ -41,14 +41,6 @@ export function TrackCategoriesPage() {
     return map;
   }, []);
 
-  if (categories === undefined) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   const form = useForm({
     defaultValues: { name: '', type, icon: 'circle' } as AddFormValues,
     validators: { onChange: AddFormSchema },
@@ -67,6 +59,14 @@ export function TrackCategoriesPage() {
       }
     },
   });
+
+  if (categories === undefined) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   const onArchive = async (c: TrackCategory) => {
     await trackCategoryRepository.setArchived(c.id, !c.archived);

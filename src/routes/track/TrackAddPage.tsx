@@ -8,18 +8,17 @@
 
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Card, Button, Input, Textarea, MoneyInput, DateInput, CategoryPicker, PaymentMethodPicker, useToast, Spinner } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
 import { trackTransactionRepository } from '@modules/track/repositories/trackTransactionRepository';
-import { TrackTransactionInputSchema } from '@modules/track/domain/validation';
+import { TrackTransactionInputSchema, type TrackTransactionInput } from '@modules/track/domain/validation';
 import type { TrackTransactionType } from '@db/schema';
 
 const FormSchema = TrackTransactionInputSchema;
-type FormValues = z.infer<typeof FormSchema>;
+type FormValues = TrackTransactionInput;
 
 export function TrackAddPage() {
   const navigate = useNavigate();
@@ -28,20 +27,12 @@ export function TrackAddPage() {
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   const initialType: TrackTransactionType = search?.type === 'income' ? 'income' : 'expense';
   const initialValues: FormValues = {
     type: initialType,
     title: '',
     amountMinor: 0,
-    currency: settings.defaultCurrency,
+    currency: settings?.defaultCurrency ?? 'INR',
     categoryId: '',
     paymentMethod: undefined,
     date: todayDateOnly(),
@@ -75,6 +66,14 @@ export function TrackAddPage() {
       }
     },
   });
+
+  if (!settings) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

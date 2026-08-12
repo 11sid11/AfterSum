@@ -69,14 +69,6 @@ export function TrackRecurringPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   const openAdd = () => {
     setEditingId(null);
     setAdding(true);
@@ -137,7 +129,7 @@ export function TrackRecurringPage() {
         )}
       </header>
 
-      {adding && (
+      {adding && settings && (
         <RecurringForm
           initial={
             editingId
