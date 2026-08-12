@@ -16,6 +16,7 @@ import {
 } from '@db/repositories/base';
 import type { SplitGroupMember } from '@db/schema';
 import { nowISO } from '@shared/dates';
+import { prefixedId } from '@shared/ids';
 
 export const splitGroupMemberRepository = {
   /** All members for a group (any active state), excluding soft-deleted. */
@@ -95,34 +96,48 @@ export const splitGroupMemberRepository = {
 
   /**
    * Replace the full member list for a group. Existing
-   * members not in `memberIds` are soft-deleted; existing
-   * members in the list are kept (or reactivated); new
-   * members are inserted. Used by the group settings page.
+   * members not in `memberIds` are deactivated (kept in
+   * history); existing members in the list are reactivated
+   * (or restored from soft-delete); new members are
+   * inserted. Used by the group settings page.
    */
   async replaceAllForGroup(groupId: string, memberIds: string[]): Promise<void> {
     const db = getDB();
+    const now = nowISO();
     await db.transaction('rw', db.splitGroupMembers, async () => {
       const existing = await db.splitGroupMembers.where('groupId').equals(groupId).toArray();
       const want = new Set(memberIds);
       for (const m of existing) {
         const present = want.has(m.personId);
-        if (present) {
-          if (m.deletedAt) {
-            await repoRestore(db.splitGroupMembers, m.id);
-          }
-          if (!m.active) {
-            await this.setActive(m.id, true);
-          }
-          want.delete(m.personId);
-        } else {
-          // If still active, deactivate (keep history).
-          if (!m.deletedAt && m.active) {
-            await this.setActive(m.id, false);
-          }
-        }
+        const next: SplitGroupMember = present
+          ? {
+              ...m,
+              active: true,
+              deletedAt: m.deletedAt ? undefined : m.deletedAt,
+              updatedAt: now,
+              revision: (m.revision ?? 0) + 1,
+            }
+          : {
+              ...m,
+              active: false,
+              updatedAt: now,
+              revision: (m.revision ?? 0) + 1,
+            };
+        await db.splitGroupMembers.put(next);
+        if (present) want.delete(m.personId);
       }
       for (const personId of want) {
-        await this.create({ groupId, personId, active: true });
+        const row: SplitGroupMember = {
+          id: prefixedId('m'),
+          groupId,
+          personId,
+          active: true,
+          joinedAt: now,
+          createdAt: now,
+          updatedAt: now,
+          revision: 1,
+        };
+        await db.splitGroupMembers.put(row);
       }
     });
   },
