@@ -21,7 +21,6 @@ import {
 } from '@db/repositories/base';
 import { LendLedgerInputSchema, type LendLedgerInput } from '../domain/validation';
 import type { LendLedger, LendEntry } from '@db/schema';
-import { newId } from '@shared/ids';
 
 function clean(input: Partial<LendLedgerInput>): Partial<LendLedgerInput> {
   return {
@@ -143,14 +142,12 @@ export const lendLedgerRepository = {
   /** Bulk-replace (used by JSON restore). */
   async replaceAll(ledgers: LendLedger[], entries: LendEntry[]): Promise<void> {
     const db = getDB();
-    const { runTransaction } = await import('@db/transaction');
     await runTransaction(['lendLedgers', 'lendEntries'], 'readwrite', async () => {
       await db.lendLedgers.clear();
       await db.lendEntries.clear();
       if (ledgers.length > 0) await db.lendLedgers.bulkPut(ledgers);
       if (entries.length > 0) await db.lendEntries.bulkPut(entries);
     });
-    void newId; // keep newId referenced in case consumers want a fresh id
   },
 };
 

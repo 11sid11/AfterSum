@@ -52,11 +52,9 @@ const currencyCode = z
   .max(8);
 
 /** Non-zero finite integer in minor units. */
-const amountMinor = z
-  .number({ invalid_type_error: 'Amount is required' })
-  .int('Amount must be an integer (minor units)')
-  .refine((n) => Number.isFinite(n), 'Amount must be finite')
-  .refine((n) => n !== 0, 'Amount must not be zero');
+// (kept as documentation; the actual validator is
+// inlined in LendEntryInputSchema because the rule
+// depends on the entry type and uses `superRefine`.)
 
 const LEND_ENTRY_TYPES = [
   'lent',

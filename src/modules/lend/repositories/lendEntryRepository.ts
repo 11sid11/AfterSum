@@ -18,7 +18,7 @@ import {
   repoRestore,
   type CreateInput,
 } from '@db/repositories/base';
-import { LendEntryInputSchema, type LendEntryInput } from '../domain/validation';
+import { LendEntryInputSchema, LendEntryTypeSchema, type LendEntryInput } from '../domain/validation';
 import { magnitudeToStoredAmount } from '../domain/signs';
 import type { LendEntry } from '@db/schema';
 
@@ -93,8 +93,39 @@ export const lendEntryRepository = {
    * to the patch.
    */
   async update(id: string, patch: Partial<LendEntryInput>): Promise<LendEntry> {
-    const parsed = LendEntryInputSchema.partial().parse(patch);
-    const cleaned = clean(parsed);
+    // We can't call .partial() on the refined schema
+    // directly (superRefine blocks it), so we do a
+    // shape-level validation per field instead.
+    const cleaned = clean(patch);
+    if (typeof cleaned.ledgerId === 'string' && cleaned.ledgerId.length === 0) {
+      throw new Error('Ledger is required');
+    }
+    if (typeof cleaned.type === 'string' && !LendEntryTypeSchema.safeParse(cleaned.type).success) {
+      throw new Error('Invalid entry type');
+    }
+    if (cleaned.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(cleaned.date)) {
+      throw new Error('Date must be YYYY-MM-DD');
+    }
+    if (
+      cleaned.dueDate !== undefined &&
+      typeof cleaned.dueDate === 'string' &&
+      cleaned.dueDate !== '' &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(cleaned.dueDate)
+    ) {
+      throw new Error('Due date must be YYYY-MM-DD');
+    }
+    if (cleaned.amountMinor !== undefined) {
+      if (!Number.isInteger(cleaned.amountMinor)) {
+        throw new Error('Amount must be an integer (minor units)');
+      }
+      if (cleaned.amountMinor === 0) {
+        throw new Error('Amount must not be zero');
+      }
+      if (cleaned.type !== 'adjustment' && cleaned.amountMinor < 0) {
+        throw new Error('Amount must be positive for this entry type');
+      }
+    }
+
     const patchWithStored: Partial<LendEntry> = {};
     if (cleaned.ledgerId !== undefined) patchWithStored.ledgerId = cleaned.ledgerId;
     if (cleaned.type !== undefined) patchWithStored.type = cleaned.type;
