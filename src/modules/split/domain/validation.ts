@@ -225,12 +225,15 @@ export function assertExpenseInvariants(input: {
     );
   }
   if (input.splitMethod === 'percentage' && input.allocation) {
-    const totals = Object.values(input.allocation.percentagesByPersonId ?? {}).reduce(
-      (a, b) => a + b,
-      0,
-    );
-    if (Math.abs(totals - 100) > 0.0001) {
-      throw new Error(`Percentages must sum to 100 (got ${totals})`);
+    const allocation = input.allocation;
+    if (allocation.method === 'percentage') {
+      const totals = Object.values(allocation.percentagesByPersonId).reduce(
+        (a: number, b: number) => a + b,
+        0,
+      );
+      if (Math.abs(totals - 100) > 0.0001) {
+        throw new Error(`Percentages must sum to 100 (got ${totals})`);
+      }
     }
   }
 }

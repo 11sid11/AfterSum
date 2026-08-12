@@ -90,8 +90,11 @@ describe('paymentMethodTotals', () => {
     ];
     const out = paymentMethodTotals(list, '2026-08');
     expect(out).toHaveLength(2);
-    expect(out[0]?.totalMinor).toBe(1500);
-    expect(out[0]?.paymentMethod).toBe('upi');
+    // sorted desc: cash (2000) then upi (1500)
+    expect(out[0]?.totalMinor).toBe(2000);
+    expect(out[0]?.paymentMethod).toBe('cash');
+    expect(out[1]?.totalMinor).toBe(1500);
+    expect(out[1]?.paymentMethod).toBe('upi');
   });
 });
 

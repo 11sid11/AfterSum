@@ -13,11 +13,9 @@
 import { getDB } from '@db/database';
 import { runTransaction } from '@db/transaction';
 import {
-  repoCreate,
   repoUpdate,
   repoSoftDelete,
   repoRestore,
-  type CreateInput,
 } from '@db/repositories/base';
 import { newId, prefixedId } from '@shared/ids';
 import { nowISO } from '@shared/dates';
@@ -215,5 +213,3 @@ export type SplitExpenseRepository = typeof splitExpenseRepository;
 // Keep references live for downstream type usage without
 // dragging unused-import lints in here.
 void newId;
-void repoCreate;
-void CreateInput;

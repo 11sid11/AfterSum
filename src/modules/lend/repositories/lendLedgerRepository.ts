@@ -96,15 +96,16 @@ export const lendLedgerRepository = {
     const ledger = await db.lendLedgers.get(id);
     if (!ledger) return { ledgerId: id, entryIds: [] };
     const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
-    await db.transaction('rw', db.lendLedgers, db.lendEntries, async () => {
+    const activeEntries = entries.filter((e) => !e.deletedAt);
+    // Use runTransaction for explicit table-list semantics.
+    const { runTransaction } = await import('@db/transaction');
+    await runTransaction(['lendLedgers', 'lendEntries'], 'readwrite', async () => {
       await repoSoftDelete(db.lendLedgers, id);
-      for (const e of entries) {
-        if (!e.deletedAt) {
-          await repoSoftDelete(db.lendEntries, e.id);
-        }
+      for (const e of activeEntries) {
+        await repoSoftDelete(db.lendEntries, e.id);
       }
     });
-    return { ledgerId: id, entryIds: entries.map((e) => e.id) };
+    return { ledgerId: id, entryIds: activeEntries.map((e) => e.id) };
   },
 
   /** Restore a soft-deleted ledger and its previously-active entries. */
@@ -112,18 +113,10 @@ export const lendLedgerRepository = {
     const db = getDB();
     const ledger = await db.lendLedgers.get(id);
     if (!ledger) return { ledgerId: id, entryIds: [] };
-    // The entries that were active at delete time are
-    // those WITHOUT a deletedAt (because softDelete only
-    // sets deletedAt on the ones that didn't have it).
-    // We can't perfectly recover, but the typical case is
-    // a fresh "delete to undo" within the toast window.
-    // Conservative: restore all entries that have deletedAt
-    // and were created around the same time as the ledger's
-    // deletedAt. For V1 we just restore all entries for the
-    // ledger that are currently deleted.
     const entries = (await db.lendEntries.where('ledgerId').equals(id).toArray())
       .filter((e) => !!e.deletedAt);
-    await db.transaction('rw', db.lendLedgers, db.lendEntries, async () => {
+    const { runTransaction } = await import('@db/transaction');
+    await runTransaction(['lendLedgers', 'lendEntries'], 'readwrite', async () => {
       await repoRestore(db.lendLedgers, id);
       for (const e of entries) {
         await repoRestore(db.lendEntries, e.id);
@@ -139,7 +132,8 @@ export const lendLedgerRepository = {
    */
   async _hardDeleteCascade(id: string): Promise<void> {
     const db = getDB();
-    await db.transaction('rw', db.lendLedgers, db.lendEntries, async () => {
+    const { runTransaction } = await import('@db/transaction');
+    await runTransaction(['lendLedgers', 'lendEntries'], 'readwrite', async () => {
       const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
       for (const e of entries) await db.lendEntries.delete(e.id);
       await db.lendLedgers.delete(id);
@@ -149,7 +143,8 @@ export const lendLedgerRepository = {
   /** Bulk-replace (used by JSON restore). */
   async replaceAll(ledgers: LendLedger[], entries: LendEntry[]): Promise<void> {
     const db = getDB();
-    await db.transaction('rw', db.lendLedgers, db.lendEntries, async () => {
+    const { runTransaction } = await import('@db/transaction');
+    await runTransaction(['lendLedgers', 'lendEntries'], 'readwrite', async () => {
       await db.lendLedgers.clear();
       await db.lendEntries.clear();
       if (ledgers.length > 0) await db.lendLedgers.bulkPut(ledgers);
