@@ -4,7 +4,10 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
 export default defineConfig({
-  plugins: [react()],
+  // Cast to any to avoid a peer-dep type mismatch between
+  // vitest 2.1's expected vite version and the actually-installed
+  // vite 6. The runtime is fine.
+  plugins: [react() as never],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -16,6 +19,7 @@ export default defineConfig({
       '@sync': path.resolve(__dirname, './src/sync'),
       '@export': path.resolve(__dirname, './src/export'),
       '@components': path.resolve(__dirname, './src/components'),
+      '@tests': path.resolve(__dirname, './src/tests'),
     },
   },
   test: {

@@ -40,7 +40,8 @@
       "@overview/*": ["./src/overview/*"],
       "@sync/*": ["./src/sync/*"],
       "@export/*": ["./src/export/*"],
-      "@components/*": ["./src/components/*"]
+      "@components/*": ["./src/components/*"],
+      "@tests/*": ["./src/tests/*"]
     }
   },
   "include": ["src", "tests"],
