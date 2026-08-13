@@ -1,13 +1,10 @@
 /**
  * Local sync state.
  *
- * Tracks the global sync metadata row. Any module mutation
- * flips `dirty` to true; the actual Google sync is opt-in and
- * happens on a debounced timer or on user request.
- *
- * Manual sheet edits are never interpreted as app actions —
- * Google is treated as a one-way push + explicit restore, not
- * a distributed event log.
+ * Tracks whether local financial data has changed since the last successful
+ * optional cloud backup. Google Sheets is a one-way snapshot target plus an
+ * explicit restore source; manual sheet edits are never interpreted as app
+ * actions.
  */
 
 import { getDB } from '@db/database';
@@ -29,6 +26,7 @@ export async function getSyncMetadata(): Promise<SyncMetadata> {
   const db = getDB();
   const row = await db.syncMetadata.get(SYNC_ID);
   if (row) return row;
+
   const now = nowISO();
   const initial: SyncMetadata = { ...DEFAULT_METADATA, createdAt: now, updatedAt: now };
   await db.syncMetadata.put(initial);
@@ -57,6 +55,7 @@ export async function markDirty(): Promise<void> {
   const db = getDB();
   const cur = await getSyncMetadata();
   if (cur.dirty && cur.status === 'pending') return;
+
   const now = nowISO();
   const next: SyncMetadata = {
     ...cur,
@@ -70,5 +69,16 @@ export async function markDirty(): Promise<void> {
 }
 
 export async function markSynced(): Promise<void> {
-  await setSyncStatus('synced', { lastSuccessfulSyncAt: nowISO() });
+  const db = getDB();
+  const cur = await getSyncMetadata();
+  const now = nowISO();
+  await db.syncMetadata.put({
+    ...cur,
+    dirty: false,
+    status: 'synced',
+    lastSuccessfulSyncAt: now,
+    lastError: undefined,
+    updatedAt: now,
+    revision: (cur.revision ?? 0) + 1,
+  });
 }
