@@ -1,5 +1,9 @@
 /**
  * Root layout — app shell for the four primary product areas.
+ *
+ * Phones use the familiar bottom tab bar. Wider screens expose the
+ * same destinations in the header so desktop users are not forced
+ * into a mobile navigation pattern.
  */
 
 import { type ReactNode, useState } from 'react';
@@ -30,6 +34,10 @@ const NAV: NavItem[] = [
   { to: '/lend', label: 'Lend', icon: HandCoins },
 ];
 
+function isActivePath(currentPath: string, to: string): boolean {
+  return currentPath === to || currentPath.startsWith(`${to}/`);
+}
+
 export function RootLayout({ children }: { children?: ReactNode }) {
   const settings = useAppSettings();
   const navigate = useNavigate();
@@ -53,17 +61,40 @@ export function RootLayout({ children }: { children?: ReactNode }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-screen-lg flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="flex items-center justify-between gap-2">
-          <Link to="/overview" className="text-base font-semibold tracking-tight">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 sm:py-2.5">
+        <div className="flex items-center gap-3">
+          <Link to="/overview" className="shrink-0 py-2 text-base font-semibold tracking-tight">
             AfterSum
           </Link>
-          <div className="flex items-center gap-1">
+
+          <nav className="ml-3 hidden min-w-0 flex-1 items-center gap-1 sm:flex" aria-label="Primary navigation">
+            {NAV.map((item) => {
+              const active = isActivePath(currentPath, item.to);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={clsx(
+                    'inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium transition-colors',
+                    active
+                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-200'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100',
+                  )}
+                >
+                  <Icon size={17} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={() => navigate({ to: '/search' })}
               aria-label="Search"
-              className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <SearchIcon size={18} />
             </button>
@@ -71,7 +102,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
               type="button"
               onClick={() => navigate({ to: '/settings' })}
               aria-label="Settings"
-              className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <SettingsIcon size={18} />
             </button>
@@ -79,7 +110,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-4 pb-24 sm:pb-6">{children ?? <Outlet />}</main>
+      <main className="min-w-0 flex-1 px-4 py-4 pb-24 sm:pb-8">{children ?? <Outlet />}</main>
 
       {showGlobalAdd && (
         <button
@@ -92,9 +123,12 @@ export function RootLayout({ children }: { children?: ReactNode }) {
         </button>
       )}
 
-      <nav className="sticky bottom-0 z-20 grid grid-cols-4 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+      <nav
+        className="sticky bottom-0 z-20 grid grid-cols-4 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 sm:hidden"
+        aria-label="Primary navigation"
+      >
         {NAV.map((item) => {
-          const active = currentPath === item.to || currentPath.startsWith(`${item.to}/`);
+          const active = isActivePath(currentPath, item.to);
           const Icon = item.icon;
           return (
             <Link
