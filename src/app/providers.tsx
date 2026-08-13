@@ -24,16 +24,15 @@ export function AppProviders({ children }: AppProvidersProps) {
     const initialize = async () => {
       try {
         await ensureFirstLaunch();
+        if (cancelled) return;
 
-        // Recovery is best-effort. A quota/storage failure must never prevent
-        // the offline app itself from opening.
-        try {
-          await ensureDailyRecoverySnapshot();
-        } catch (recoveryError) {
+        setReady(true);
+
+        // Recovery is best-effort and deliberately off the startup critical
+        // path so a large local history never delays opening the PWA.
+        void ensureDailyRecoverySnapshot().catch((recoveryError) => {
           console.warn('Could not create local recovery checkpoint.', recoveryError);
-        }
-
-        if (!cancelled) setReady(true);
+        });
       } catch (err: unknown) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
