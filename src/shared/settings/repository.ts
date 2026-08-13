@@ -16,6 +16,21 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, 'createdAt' | 'updatedAt' | 're
   onboardingComplete: false,
 };
 
+async function writeWithoutDirty(patch: Partial<AppSettings>): Promise<AppSettings> {
+  const db = getDB();
+  const cur = await settingsRepository.get();
+  const now = nowISO();
+  const next: AppSettings = {
+    ...cur,
+    ...patch,
+    id: 'app',
+    updatedAt: now,
+    revision: (cur.revision ?? 0) + 1,
+  };
+  await db.settings.put(next);
+  return next;
+}
+
 export const settingsRepository = {
   async get(): Promise<AppSettings> {
     const db = getDB();
@@ -33,17 +48,7 @@ export const settingsRepository = {
   },
 
   async update(patch: Partial<AppSettings>): Promise<AppSettings> {
-    const db = getDB();
-    const cur = await settingsRepository.get();
-    const now = nowISO();
-    const next: AppSettings = {
-      ...cur,
-      ...patch,
-      id: 'app',
-      updatedAt: now,
-      revision: (cur.revision ?? 0) + 1,
-    };
-    await db.settings.put(next);
+    const next = await writeWithoutDirty(patch);
     await markDirty();
     return next;
   },
@@ -76,5 +81,29 @@ export const settingsRepository = {
 
   async setOnboardingComplete(complete: boolean): Promise<AppSettings> {
     return settingsRepository.update({ onboardingComplete: complete });
+  },
+
+  async setGoogleSyncBinding(input: {
+    accountId: string;
+    email?: string;
+    spreadsheetId?: string;
+  }): Promise<AppSettings> {
+    return writeWithoutDirty({
+      googleSyncEnabled: true,
+      googleAccountId: input.accountId,
+      googleAccountEmail: input.email,
+      googleSpreadsheetId: input.spreadsheetId,
+      googleFolderId: undefined,
+    });
+  },
+
+  async clearGoogleSyncBinding(): Promise<AppSettings> {
+    return writeWithoutDirty({
+      googleSyncEnabled: false,
+      googleAccountId: undefined,
+      googleAccountEmail: undefined,
+      googleSpreadsheetId: undefined,
+      googleFolderId: undefined,
+    });
   },
 };
