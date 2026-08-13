@@ -1,13 +1,12 @@
 /**
- * PayerSelector.
+ * Single-payer selector for Split V1.
  *
- * V1 supports a single payer per expense. The UI uses
- * `PersonPicker` plus a money input. The model already
- * supports multiple payers, so this can be extended
- * later without schema changes.
+ * The expense total is entered once by the parent form. A single
+ * payer is assumed to have paid that full amount, so this control
+ * only asks who paid.
  */
 
-import { PersonPicker, MoneyInput } from '@components/ui';
+import { PersonPicker } from '@components/ui';
 import type { CurrencyCode } from '@shared/money';
 
 export interface PayerSelectorProps {
@@ -19,29 +18,14 @@ export interface PayerSelectorProps {
   error?: string;
 }
 
-export function PayerSelector({
-  payerId,
-  amountMinor,
-  currency,
-  onPayerChange,
-  onAmountChange,
-  error,
-}: PayerSelectorProps) {
+export function PayerSelector({ payerId, onPayerChange, error }: PayerSelectorProps) {
   return (
-    <div className="space-y-2">
-      <PersonPicker
-        value={payerId}
-        onChange={onPayerChange}
-        label="Paid by"
-        excludeSelf={false}
-      />
-      <MoneyInput
-        value={amountMinor}
-        currency={currency}
-        onChange={onAmountChange}
-        label="Amount paid"
-        error={error}
-      />
-    </div>
+    <PersonPicker
+      value={payerId}
+      onChange={onPayerChange}
+      label="Paid by"
+      excludeSelf={false}
+      error={error}
+    />
   );
 }
