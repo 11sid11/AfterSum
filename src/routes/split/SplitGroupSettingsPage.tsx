@@ -1,39 +1,24 @@
-/**
- * Group settings.
- *
- * Edit name / description / currency, manage members
- * (add/remove/active), and archive or delete the group.
- */
-
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import {
-  Button,
-  Card,
-  CardHeader,
-  CardTitle,
-  Input,
-  Spinner,
-  Textarea,
-  useToast,
-  Modal,
-} from '@components/ui';
-import { useSplitGroup, useSplitGroupMembers } from '@modules/split/queries';
-import { usePeople, useSelf } from '@shared/people/queries';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Button, Card, CardHeader, CardTitle, Input, Modal, Spinner, Textarea, useToast } from '@components/ui';
+import { useSplitGroup } from '@modules/split/queries';
 import { splitGroupRepository } from '@modules/split/repositories/splitGroupRepository';
-import { splitGroupMemberRepository } from '@modules/split/repositories/splitGroupMemberRepository';
-import { MemberSelector } from '@modules/split/components/MemberSelector';
-import { useAppSettings } from '@shared/settings/useSettings';
+import { getDB } from '@db/database';
 import { UNDO_TIMEOUT_MS } from '@app/constants';
 
 export function SplitGroupSettingsPage() {
-  const params = useParams({ from: '/split/group/$groupId/settings' });
-  const groupId = params.groupId;
+  const { groupId } = useParams({ from: '/split/group/$groupId/settings' });
   const navigate = useNavigate();
   const group = useSplitGroup(groupId);
-  const members = useSplitGroupMembers(groupId, true);
-  const people = usePeople();
-  const self = useSelf();
+  const activityCount = useLiveQuery(async () => {
+    const db = getDB();
+    const [expenses, settlements] = await Promise.all([
+      db.splitExpenses.where('groupId').equals(groupId).count(),
+      db.splitSettlements.where('groupId').equals(groupId).count(),
+    ]);
+    return expenses + settlements;
+  }, [groupId]);
   const toast = useToast();
 
   const [name, setName] = useState('');
@@ -41,50 +26,33 @@ export function SplitGroupSettingsPage() {
   const [currency, setCurrency] = useState('INR');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  // Member management
-  const [activeIds, setActiveIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
-    if (group) {
-      setName(group.name);
-      setDescription(group.description ?? '');
-      setCurrency(group.currency);
-    }
+    if (!group) return;
+    setName(group.name);
+    setDescription(group.description ?? '');
+    setCurrency(group.currency);
   }, [group]);
 
-  useEffect(() => {
-    if (members) {
-      setActiveIds(members.filter((m) => m.active).map((m) => m.personId));
-    }
-  }, [members]);
-
-  if (!group || members === undefined || !people || !self) {
-    return (
-      <div className="flex justify-center py-10">
-        <Spinner />
-      </div>
-    );
+  if (!group || activityCount === undefined) {
+    return <div className="flex justify-center py-10"><Spinner /></div>;
   }
 
-  const memberPersonIds = new Set(members.map((m) => m.personId));
-  const memberPeople = people.filter((p) => memberPersonIds.has(p.id));
-  const candidatePeople = people.filter((p) => !memberPersonIds.has(p.id));
+  const currencyLocked = activityCount > 0;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return;
     setSaving(true);
     try {
       await splitGroupRepository.update(groupId, {
         name: name.trim(),
         description: description.trim() || undefined,
-        currency,
+        currency: currencyLocked ? group.currency : currency,
       });
-      // Member changes are applied via a separate button to
-      // keep the "Save" intent unambiguous.
       setSaved(true);
-      toast.show('Saved', { variant: 'success' });
+      toast.show('Trip settings saved', { variant: 'success' });
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'Failed to save', { variant: 'error' });
     } finally {
@@ -92,181 +60,85 @@ export function SplitGroupSettingsPage() {
     }
   };
 
-  const handleSaveMembers = async () => {
-    setSaving(true);
-    try {
-      await splitGroupMemberRepository.replaceAllForGroup(groupId, activeIds);
-      toast.show('Members updated', { variant: 'success' });
-    } catch (err) {
-      toast.show(err instanceof Error ? err.message : 'Failed to update members', { variant: 'error' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleArchive = async () => {
-    if (group.archived) {
-      await splitGroupRepository.unarchive(groupId);
-      toast.show('Group unarchived', { variant: 'success' });
-    } else {
-      await splitGroupRepository.archive(groupId);
-      toast.show('Group archived', { variant: 'success' });
+    try {
+      if (group.archived) {
+        await splitGroupRepository.unarchive(groupId);
+        toast.show('Trip restored', { variant: 'success' });
+      } else {
+        await splitGroupRepository.archive(groupId);
+        toast.show('Trip archived', { variant: 'success' });
+        navigate({ to: '/split' });
+      }
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'Could not update trip', { variant: 'error' });
     }
   };
 
   const handleDelete = async () => {
-    await splitGroupRepository.softDelete(groupId);
-    toast.show('Group deleted', {
-      action: { label: 'Undo', onClick: () => void splitGroupRepository.restore(groupId) },
-      duration: UNDO_TIMEOUT_MS,
-    });
-    setConfirmDelete(false);
-    navigate({ to: '/split' });
+    try {
+      await splitGroupRepository.softDelete(groupId);
+      toast.show('Trip deleted', {
+        action: { label: 'Undo', onClick: () => void splitGroupRepository.restore(groupId) },
+        duration: UNDO_TIMEOUT_MS,
+      });
+      setConfirmDelete(false);
+      navigate({ to: '/split' });
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'Could not delete trip', { variant: 'error' });
+    }
   };
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })}
-          className="text-sm text-brand-600 hover:underline"
-        >
-          Back
-        </button>
-      </div>
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0"><h1 className="text-lg font-semibold">Trip settings</h1><p className="truncate text-xs text-slate-500">{group.name}</p></div>
+        <button type="button" onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })} className="min-h-11 shrink-0 px-2 text-sm font-medium text-brand-600 hover:underline">Back to trip</button>
+      </header>
 
       <Card>
         <form className="space-y-3" onSubmit={handleSave}>
-          <Input
-            label="Name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setSaved(false);
-            }}
-            required
-          />
-          <Textarea
-            label="Description"
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              setSaved(false);
-            }}
-          />
+          <Input label="Trip name" value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} required maxLength={120} />
+          <Textarea label="Description" value={description} onChange={(event) => { setDescription(event.target.value); setSaved(false); }} maxLength={500} />
           <div className="space-y-1">
             <label className="label">Currency</label>
-            <select
-              className="input h-11"
-              value={currency}
-              onChange={(e) => {
-                setCurrency(e.target.value);
-                setSaved(false);
-              }}
-            >
-              {['INR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'SGD', 'AED'].map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            {currencyLocked ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-sm font-semibold">{group.currency}</p>
+                <p className="mt-0.5 text-xs text-slate-500">Locked after expenses or payments are recorded so old amounts are never relabelled.</p>
+              </div>
+            ) : (
+              <select className="input h-11" value={currency} onChange={(event) => { setCurrency(event.target.value); setSaved(false); }} aria-label="Trip currency">
+                {['INR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'SGD', 'AED'].map((code) => <option key={code} value={code}>{code}</option>)}
+              </select>
+            )}
           </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={saving || (!saved && !name.trim())}>
-              {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
-            </Button>
-          </div>
+          <div className="flex justify-end"><Button type="submit" disabled={saving || !name.trim()}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save'}</Button></div>
         </form>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Members</CardTitle>
-          <Button size="sm" variant="secondary" onClick={handleSaveMembers} disabled={saving}>
-            Save members
-          </Button>
-        </CardHeader>
-        {memberPeople.length === 0 && candidatePeople.length === 0 ? (
-          <p className="text-sm text-slate-500">No people to add yet.</p>
-        ) : (
-          <div className="space-y-3">
-            <MemberSelector
-              people={memberPeople}
-              selectedIds={activeIds}
-              onChange={setActiveIds}
-              showActive
-              activeIds={activeIds}
-              onActiveChange={(id, active) => {
-                setActiveIds((cur) =>
-                  active ? Array.from(new Set([...cur, id])) : cur.filter((x) => x !== id),
-                );
-              }}
-            />
-            {candidatePeople.length > 0 && (
-              <details className="rounded-xl border border-slate-200 dark:border-slate-700">
-                <summary className="cursor-pointer px-3 py-2 text-sm">Add people</summary>
-                <div className="px-3 pb-3">
-                  <MemberSelector
-                    people={candidatePeople}
-                    selectedIds={[]}
-                    onChange={(ids) => {
-                      // Additions are staged; require Save to commit.
-                      setActiveIds((cur) => Array.from(new Set([...cur, ...ids])));
-                    }}
-                  />
-                </div>
-              </details>
-            )}
-          </div>
-        )}
+        <CardHeader><CardTitle>Participants</CardTitle></CardHeader>
+        <p className="text-sm text-slate-500">Manage who is in this trip from the <strong>People</strong> tab. Keeping participant changes next to trip activity avoids two competing member lists.</p>
+        <Button className="mt-3" variant="secondary" onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })}>Back to trip</Button>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Archive</CardTitle>
-          <Button variant="secondary" onClick={handleArchive}>
-            {group.archived ? 'Unarchive' : 'Archive'}
-          </Button>
-        </CardHeader>
-        <p className="text-sm text-slate-500">
-          {group.archived
-            ? 'This group is archived. Unarchive to start adding new expenses.'
-            : 'Archive to hide the group from the dashboard. History is preserved.'}
-        </p>
+        <CardHeader><CardTitle>Archive trip</CardTitle><Button variant="secondary" onClick={() => void handleArchive()}>{group.archived ? 'Restore trip' : 'Archive trip'}</Button></CardHeader>
+        <p className="text-sm text-slate-500">Archive hides this trip from the active list while preserving its history. Archived trips can be restored from Split.</p>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Delete</CardTitle>
-          <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-            Delete group
-          </Button>
-        </CardHeader>
-        <p className="text-sm text-slate-500">
-          Soft-deletes the group and all its expenses. Undo is available from the toast.
-        </p>
+        <CardHeader><CardTitle>Delete trip</CardTitle><Button variant="danger" onClick={() => setConfirmDelete(true)}>Delete trip</Button></CardHeader>
+        <p className="text-sm text-slate-500">Removes this trip from normal views. Its financial rows remain intact so Undo and backups stay reliable.</p>
       </Card>
 
       {confirmDelete && (
-        <Modal open onClose={() => setConfirmDelete(false)} title="Delete group?">
-          <p className="text-sm text-slate-500">
-            Are you sure you want to delete "{group.name}"? You can undo from the toast.
-          </p>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Delete
-            </Button>
-          </div>
+        <Modal open onClose={() => setConfirmDelete(false)} title="Delete trip?">
+          <p className="text-sm text-slate-500">Delete “{group.name}”? The trip will disappear from normal views. You can undo from the confirmation message immediately afterward.</p>
+          <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button><Button variant="danger" onClick={() => void handleDelete()}>Delete trip</Button></div>
         </Modal>
       )}
     </div>
   );
 }
-
-// keep live refs for typecheck noise
-void useAppSettings;

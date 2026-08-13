@@ -1,87 +1,80 @@
-/**
- * View/edit a single Track transaction by id.
- *
- * Shows the form, plus a Delete button that soft-deletes the
- * record and shows an Undo toast. The route is /track/transaction/$transactionId.
- */
-
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useForm } from '@tanstack/react-form';
 import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import {
-  Card,
-  Button,
-  Input,
-  Textarea,
-  MoneyInput,
-  DateInput,
-  CategoryPicker,
-  PaymentMethodPicker,
-  useToast,
-  Spinner,
-  Money,
-} from '@components/ui';
+import { Card, Button, Input, Textarea, MoneyInput, DateInput, CategoryPicker, PaymentMethodPicker, useToast, Spinner, Money } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
-import { useTrackTransaction } from '@modules/track/queries';
+import { getDB } from '@db/database';
 import { trackTransactionRepository } from '@modules/track/repositories/trackTransactionRepository';
 import { TrackTransactionInputSchema, type TrackTransactionInput } from '@modules/track/domain/validation';
-import { formatHumanDateTime, todayDateOnly } from '@shared/dates';
+import { formatHumanDateTime } from '@shared/dates';
+import type { TrackTransaction } from '@db/schema';
 
-const FormSchema = TrackTransactionInputSchema;
 type FormValues = TrackTransactionInput;
 
 export function TrackTransactionPage() {
   const { transactionId } = useParams({ strict: false }) as { transactionId?: string };
-  const navigate = useNavigate();
   const settings = useAppSettings();
+  const transaction = useLiveQuery(async () => {
+    if (!transactionId) return null;
+    return (await getDB().trackTransactions.get(transactionId)) ?? null;
+  }, [transactionId]);
+
+  if (!settings || transaction === undefined) {
+    return <div className="grid min-h-[40vh] place-items-center"><Spinner /></div>;
+  }
+
+  if (!transaction || transaction.deletedAt) {
+    return <MissingTransaction />;
+  }
+
+  return <TrackTransactionForm key={transaction.id} transaction={transaction} hideAmounts={settings.hideAmounts} />;
+}
+
+function MissingTransaction() {
+  const navigate = useNavigate();
+  return (
+    <div className="space-y-3">
+      <header className="flex items-center gap-2">
+        <button type="button" onClick={() => navigate({ to: '/track' })} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft size={18} /></button>
+        <h1 className="text-lg font-semibold">Transaction</h1>
+      </header>
+      <Card><p className="text-sm text-slate-500">This transaction no longer exists.</p></Card>
+    </div>
+  );
+}
+
+function TrackTransactionForm({ transaction, hideAmounts }: { transaction: TrackTransaction; hideAmounts: boolean }) {
+  const navigate = useNavigate();
   const toast = useToast();
-  const transaction = useTrackTransaction(transactionId);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Always call useForm (rules-of-hooks) with safe defaults. We
-  // remount the form once the transaction has loaded so the
-  // defaults take effect.
-  const fallbackValues: FormValues = {
-    type: 'expense',
-    title: '',
-    amountMinor: 0,
-    currency: settings?.defaultCurrency ?? 'INR',
-    categoryId: '',
-    paymentMethod: undefined,
-    date: todayDateOnly(),
-    note: '',
-  };
-  const initialValues: FormValues = transaction
-    ? {
-        type: transaction.type,
-        title: transaction.title,
-        amountMinor: transaction.amountMinor,
-        currency: transaction.currency,
-        categoryId: transaction.categoryId ?? '',
-        paymentMethod: transaction.paymentMethod,
-        date: transaction.date,
-        note: transaction.note ?? '',
-      }
-    : fallbackValues;
-
   const form = useForm({
-    defaultValues: initialValues,
-    validators: { onChange: FormSchema },
+    defaultValues: {
+      type: transaction.type,
+      title: transaction.title,
+      amountMinor: transaction.amountMinor,
+      currency: transaction.currency,
+      categoryId: transaction.categoryId ?? '',
+      paymentMethod: transaction.paymentMethod,
+      date: transaction.date,
+      note: transaction.note ?? '',
+    } as FormValues,
+    validators: { onChange: TrackTransactionInputSchema },
     onSubmit: async ({ value }) => {
-      if (!transaction) return;
       setSubmitting(true);
       try {
         await trackTransactionRepository.update(transaction.id, {
           type: value.type,
           title: value.title.trim(),
           amountMinor: value.amountMinor,
-          currency: value.currency,
+          currency: transaction.currency,
           categoryId: value.categoryId || undefined,
           paymentMethod: value.paymentMethod,
           date: value.date,
-          note: value.note || undefined,
+          note: value.note?.trim() || undefined,
         });
         toast.show('Saved');
         navigate({ to: '/track' });
@@ -92,57 +85,12 @@ export function TrackTransactionPage() {
     },
   });
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
-  if (transaction === undefined) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
-  if (!transaction) {
-    return (
-      <div className="space-y-3">
-        <header className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate({ to: '/track' })}
-            aria-label="Back"
-            className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <h1 className="text-lg font-semibold">Transaction</h1>
-        </header>
-        <Card>
-          <p className="text-sm text-slate-500">This transaction no longer exists.</p>
-        </Card>
-      </div>
-    );
-  }
-
   const onDelete = async () => {
     if (deleting) return;
     setDeleting(true);
     try {
       await trackTransactionRepository.softDelete(transaction.id);
-      const snapshot = { ...transaction };
-      toast.show('Transaction deleted', {
-        action: {
-          label: 'Undo',
-          onClick: async () => {
-            await trackTransactionRepository.restore(snapshot.id);
-          },
-        },
-      });
+      toast.show('Transaction deleted', { action: { label: 'Undo', onClick: async () => trackTransactionRepository.restore(transaction.id) } });
       navigate({ to: '/track' });
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'Could not delete', { variant: 'error' });
@@ -155,146 +103,39 @@ export function TrackTransactionPage() {
   return (
     <div className="space-y-4">
       <header className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/track' })}
-          aria-label="Back"
-          className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <ArrowLeft size={18} />
-        </button>
+        <button type="button" onClick={() => navigate({ to: '/track' })} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft size={18} /></button>
         <h1 className="text-lg font-semibold">Edit transaction</h1>
       </header>
 
       <Card>
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex min-w-0 items-baseline justify-between gap-2">
           <p className="text-sm text-slate-500">{isExpense ? 'Spent' : 'Received'}</p>
-          <p
-            className={
-              isExpense
-                ? 'text-2xl font-semibold text-rose-600 dark:text-rose-300'
-                : 'text-2xl font-semibold text-emerald-600 dark:text-emerald-300'
-            }
-          >
-            <Money
-              value={{ amountMinor: transaction.amountMinor, currency: transaction.currency }}
-              hide={settings?.hideAmounts ?? false}
-              signed
-            />
+          <p className={isExpense ? 'min-w-0 truncate text-2xl font-semibold text-rose-600 dark:text-rose-300' : 'min-w-0 truncate text-2xl font-semibold text-emerald-600 dark:text-emerald-300'}>
+            <Money value={{ amountMinor: transaction.amountMinor, currency: transaction.currency }} hide={hideAmounts} />
           </p>
         </div>
-        <p className="mt-1 text-xs text-slate-400">
-          Created {formatHumanDateTime(transaction.createdAt)} · revision {transaction.revision}
-        </p>
+        <p className="mt-1 text-xs text-slate-400">Created {formatHumanDateTime(transaction.createdAt)}</p>
       </Card>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          void form.handleSubmit();
-        }}
-        className="space-y-4"
-      >
+      <form onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void form.handleSubmit(); }} className="space-y-4">
         <Card>
-          <form.Field name="type">
-            {(field) => (
-              <div className="mb-3 inline-flex w-full rounded-full border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-900">
-                {(['expense', 'income'] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => field.handleChange(t)}
-                    aria-pressed={field.state.value === t}
-                    className={
-                      field.state.value === t
-                        ? t === 'expense'
-                          ? 'flex-1 rounded-full bg-rose-600 px-3 py-1.5 font-medium text-white'
-                          : 'flex-1 rounded-full bg-emerald-600 px-3 py-1.5 font-medium text-white'
-                        : 'flex-1 rounded-full px-3 py-1.5 text-slate-600 dark:text-slate-300'
-                    }
-                  >
-                    {t === 'expense' ? 'Expense' : 'Income'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </form.Field>
-
+          <form.Field name="type">{(field) => (
+            <div className="mb-3 inline-flex w-full rounded-full border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-900">
+              {(['expense', 'income'] as const).map((type) => <button key={type} type="button" onClick={() => field.handleChange(type)} aria-pressed={field.state.value === type} className={field.state.value === type ? type === 'expense' ? 'flex-1 rounded-full bg-rose-600 px-3 py-1.5 font-medium text-white' : 'flex-1 rounded-full bg-emerald-600 px-3 py-1.5 font-medium text-white' : 'flex-1 rounded-full px-3 py-1.5 text-slate-600 dark:text-slate-300'}>{type === 'expense' ? 'Expense' : 'Income'}</button>)}
+            </div>
+          )}</form.Field>
           <div className="space-y-3">
-            <form.Field name="title">
-              {(field) => (
-                <Input
-                  label="Title"
-                  name={field.name}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="amountMinor">
-              {(field) => (
-                <MoneyInput
-                  label="Amount"
-                  value={field.state.value}
-                  currency={transaction.currency}
-                  onChange={(v) => field.handleChange(v)}
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="date">
-              {(field) => (
-                <DateInput value={field.state.value} onChange={(d) => field.handleChange(d)} label="Date" />
-              )}
-            </form.Field>
-
-            <form.Field name="type">
-              {(field) => (
-                <CategoryPicker
-                  type={field.state.value}
-                  value={form.getFieldValue('categoryId') || undefined}
-                  onChange={(id) => form.setFieldValue('categoryId', id ?? '')}
-                  allowEmpty
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="paymentMethod">
-              {(field) => (
-                <PaymentMethodPicker value={field.state.value} onChange={(m) => field.handleChange(m)} />
-              )}
-            </form.Field>
-
-            <form.Field name="note">
-              {(field) => (
-                <Textarea
-                  label="Note"
-                  name={field.name}
-                  value={field.state.value ?? ''}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  maxLength={500}
-                />
-              )}
-            </form.Field>
+            <form.Field name="title">{(field) => <Input label="Title" name={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} />}</form.Field>
+            <form.Field name="amountMinor">{(field) => <MoneyInput label="Amount" value={field.state.value} currency={transaction.currency} onChange={(value) => field.handleChange(value)} />}</form.Field>
+            <form.Field name="date">{(field) => <DateInput value={field.state.value} onChange={(date) => field.handleChange(date)} label="Date" />}</form.Field>
+            <form.Field name="type">{(field) => <CategoryPicker type={field.state.value} value={form.getFieldValue('categoryId') || undefined} onChange={(id) => form.setFieldValue('categoryId', id ?? '')} allowEmpty />}</form.Field>
+            <form.Field name="paymentMethod">{(field) => <PaymentMethodPicker value={field.state.value} onChange={(method) => field.handleChange(method)} />}</form.Field>
+            <form.Field name="note">{(field) => <Textarea label="Note" name={field.name} value={field.state.value ?? ''} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} maxLength={500} />}</form.Field>
           </div>
         </Card>
-
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant="danger"
-            onClick={onDelete}
-            disabled={deleting || submitting}
-          >
-            <Trash2 size={16} /> {deleting ? 'Deleting…' : 'Delete'}
-          </Button>
-          <Button type="submit" disabled={submitting || deleting}>
-            {submitting ? 'Saving…' : 'Save'}
-          </Button>
+          <Button type="button" variant="danger" onClick={() => void onDelete()} disabled={deleting || submitting}><Trash2 size={16} /> {deleting ? 'Deleting…' : 'Delete'}</Button>
+          <Button type="submit" disabled={submitting || deleting}>{submitting ? 'Saving…' : 'Save'}</Button>
         </div>
       </form>
     </div>

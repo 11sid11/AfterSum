@@ -1,6 +1,4 @@
-/**
- * Settings landing page.
- */
+/** Settings landing page. */
 
 import { Link } from '@tanstack/react-router';
 import { Card, Toggle, Spinner, CurrencyPicker, useToast } from '@components/ui';
@@ -17,19 +15,23 @@ export function SettingsPage() {
 
   const stats = useLiveQuery(async () => {
     const db = getDB();
-    const [people, track, groups, lendLedgers, splitExpenses, budgets] = await Promise.all([
-      db.people.count(),
+    const [peopleRows, track, groups, lendLedgers, budgets] = await Promise.all([
+      db.people.toArray(),
       db.trackTransactions.count(),
       db.splitGroups.count(),
       db.lendLedgers.count(),
-      db.splitExpenses.count(),
       db.trackBudgets.count(),
     ]);
-    return { people, track, groups, lendLedgers, splitExpenses, budgets };
+    return {
+      people: peopleRows.filter((person) => !person.deletedAt).length,
+      track,
+      groups,
+      lendLedgers,
+      budgets,
+    };
   }, []);
 
   if (!settings) return <Spinner />;
-
   const hasFinancialData = !!stats && stats.track + stats.groups + stats.lendLedgers + stats.budgets > 0;
 
   const themeButton = (mode: 'system' | 'light' | 'dark', icon: React.ReactNode, label: string) => (
@@ -44,8 +46,7 @@ export function SettingsPage() {
       )}
       aria-pressed={settings.theme === mode}
     >
-      {icon}
-      {label}
+      {icon}{label}
     </button>
   );
 
@@ -64,18 +65,11 @@ export function SettingsPage() {
 
       <Card>
         <div className="flex items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Privacy mode</p>
             <p className="text-xs text-slate-500">Hide monetary amounts across the app.</p>
           </div>
-          <Toggle
-            checked={settings.hideAmounts}
-            onChange={(v) => {
-              void settingsRepository.setHideAmounts(v);
-              toast.show(v ? 'Privacy mode on' : 'Privacy mode off');
-            }}
-            id="privacy-toggle"
-          />
+          <Toggle checked={settings.hideAmounts} onChange={(value) => { void settingsRepository.setHideAmounts(value); toast.show(value ? 'Privacy mode on' : 'Privacy mode off'); }} id="privacy-toggle" />
           <span className="sr-only">{settings.hideAmounts ? <EyeOff size={18} /> : <Eye size={18} />}</span>
         </div>
       </Card>
@@ -83,48 +77,24 @@ export function SettingsPage() {
       <Card>
         <h2 className="section-title mb-2">Main currency</h2>
         {hasFinancialData ? (
-          <div>
-            <p className="text-sm font-semibold">{settings.defaultCurrency}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Locked after financial data is recorded so historical amounts are never relabelled as another currency.
-            </p>
-          </div>
+          <div><p className="text-sm font-semibold">{settings.defaultCurrency}</p><p className="mt-1 text-xs text-slate-500">Locked after financial data is recorded so historical amounts are never relabelled as another currency.</p></div>
         ) : (
-          <CurrencyPicker
-            value={settings.defaultCurrency}
-            onChange={(currency) => {
-              void settingsRepository.setDefaultCurrency(currency).catch((err) => {
-                toast.show(err instanceof Error ? err.message : 'Could not change currency', { variant: 'error' });
-              });
-            }}
-          />
+          <CurrencyPicker value={settings.defaultCurrency} onChange={(currency) => { void settingsRepository.setDefaultCurrency(currency).catch((err) => toast.show(err instanceof Error ? err.message : 'Could not change currency', { variant: 'error' })); }} />
         )}
       </Card>
 
       <Card padded={false}>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           <li>
-            <Link to="/settings/people" className="flex min-h-14 items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <div className="flex items-center gap-3">
-                <Users size={18} className="text-slate-500" />
-                <div>
-                  <p className="text-sm font-medium">People</p>
-                  <p className="text-xs text-slate-500">{stats?.people ?? '…'} people</p>
-                </div>
-              </div>
-              <ChevronRight size={16} className="text-slate-400" />
+            <Link to="/settings/people" className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <div className="flex min-w-0 items-center gap-3"><Users size={18} className="shrink-0 text-slate-500" /><div className="min-w-0"><p className="text-sm font-medium">People</p><p className="text-xs text-slate-500">{stats?.people ?? '…'} people</p></div></div>
+              <ChevronRight size={16} className="shrink-0 text-slate-400" />
             </Link>
           </li>
           <li>
-            <Link to="/settings/backup" className="flex min-h-14 items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <div className="flex items-center gap-3">
-                <Database size={18} className="text-slate-500" />
-                <div>
-                  <p className="text-sm font-medium">Data &amp; Backup</p>
-                  <p className="text-xs text-slate-500">Recovery, portable backup and exports</p>
-                </div>
-              </div>
-              <ChevronRight size={16} className="text-slate-400" />
+            <Link to="/settings/backup" className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <div className="flex min-w-0 items-center gap-3"><Database size={18} className="shrink-0 text-slate-500" /><div className="min-w-0"><p className="text-sm font-medium">Data &amp; Backup</p><p className="truncate text-xs text-slate-500">Recovery, portable backup and exports</p></div></div>
+              <ChevronRight size={16} className="shrink-0 text-slate-400" />
             </Link>
           </li>
         </ul>
