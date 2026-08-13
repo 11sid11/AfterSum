@@ -1,12 +1,5 @@
 /**
- * Onboarding — short, optional, no forced Google sign-in.
- *
- * Screens:
- *   1. Welcome — explain what the app does
- *   2. Default currency
- *   3. Your name (self Person)
- *   4. Persistent storage opt-in
- *   5. Done
+ * Short first-run onboarding. No account or bank connection is required.
  */
 
 import { useState } from 'react';
@@ -33,10 +26,8 @@ export function OnboardingPage() {
     setBusy(true);
     try {
       await settingsRepository.update({ defaultCurrency: currency });
-      await personRepository.update('self', { name });
-      if (persist) {
-        await persistBrowserStorage();
-      }
+      await personRepository.update('self', { name: name.trim() });
+      if (persist) await persistBrowserStorage();
       await settingsRepository.setOnboardingComplete(true);
       navigate({ to: '/overview' });
     } finally {
@@ -45,16 +36,17 @@ export function OnboardingPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center gap-4 px-2">
+    <div className="mx-auto flex min-h-[75vh] max-w-md flex-col justify-center gap-4 px-2">
       {step === 0 && (
         <Card>
-          <h1 className="text-xl font-semibold">Finance Utility</h1>
-          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-            Track your spending. Split trips. Remember personal lending.
-          </p>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Works offline. No bank connection.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">AfterSum</p>
+          <h1 className="mt-2 text-2xl font-semibold">Money tracking without the clutter</h1>
+          <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+            <p><strong>Track</strong> personal spending and income.</p>
+            <p><strong>Split</strong> group expenses and settle up.</p>
+            <p><strong>Lend</strong> remember money owed between people.</p>
+          </div>
+          <p className="mt-4 text-xs text-slate-500">Works offline. No bank connection required.</p>
           <div className="mt-6 flex justify-end">
             <Button onClick={next}>Get started</Button>
           </div>
@@ -63,17 +55,18 @@ export function OnboardingPage() {
 
       {step === 1 && (
         <Card>
-          <h1 className="text-base font-semibold">Default currency</h1>
+          <h1 className="text-base font-semibold">Choose your main currency</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Used when you don't pick one. You can change it later.
+            Used for personal Track and Lend records. Split groups can choose their own currency when they are created.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            To keep historical amounts trustworthy, this choice is locked after financial data is recorded.
           </p>
           <div className="mt-4">
             <CurrencyPicker value={currency} onChange={setCurrency} />
           </div>
           <div className="mt-6 flex justify-between">
-            <Button variant="ghost" onClick={back}>
-              Back
-            </Button>
+            <Button variant="ghost" onClick={back}>Back</Button>
             <Button onClick={next}>Next</Button>
           </div>
         </Card>
@@ -82,19 +75,13 @@ export function OnboardingPage() {
       {step === 2 && (
         <Card>
           <h1 className="text-base font-semibold">Your name</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Shown in shared groups and lending ledgers.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Used to identify you in Split groups and lending history.</p>
           <div className="mt-4">
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
           </div>
           <div className="mt-6 flex justify-between">
-            <Button variant="ghost" onClick={back}>
-              Back
-            </Button>
-            <Button onClick={next} disabled={!name.trim()}>
-              Next
-            </Button>
+            <Button variant="ghost" onClick={back}>Back</Button>
+            <Button onClick={next} disabled={!name.trim()}>Next</Button>
           </div>
         </Card>
       )}
@@ -103,30 +90,23 @@ export function OnboardingPage() {
         <Card>
           <h1 className="text-base font-semibold">Keep your data safer on this device</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Ask your browser not to delete your data when storage is low.
-            Browsers may still choose to evict data — there's no guarantee.
+            Ask your browser to preserve AfterSum data when device storage is under pressure. Browser storage is still best-effort, so backups remain important.
           </p>
           <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 p-3 dark:border-slate-700">
             <div>
               <p className="text-sm font-medium">Persistent storage</p>
-              <p className="text-xs text-slate-500">Best-effort. Enable if you'll use this often.</p>
+              <p className="text-xs text-slate-500">Recommended if you'll use AfterSum regularly.</p>
             </div>
             <Toggle checked={persist} onChange={setPersist} id="persist-toggle" />
           </div>
           <div className="mt-6 flex justify-between">
-            <Button variant="ghost" onClick={back}>
-              Back
-            </Button>
-            <Button onClick={finish} disabled={busy}>
-              {busy ? 'Setting up…' : 'Finish'}
-            </Button>
+            <Button variant="ghost" onClick={back}>Back</Button>
+            <Button onClick={finish} disabled={busy}>{busy ? 'Setting up…' : 'Finish'}</Button>
           </div>
         </Card>
       )}
 
-      <div className="text-center text-xs text-slate-400">
-        Step {step + 1} of 4
-      </div>
+      <div className="text-center text-xs text-slate-400">Step {step + 1} of 4</div>
     </div>
   );
 }
