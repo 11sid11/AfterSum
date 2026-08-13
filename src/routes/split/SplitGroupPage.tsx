@@ -229,7 +229,6 @@ export function SplitGroupPage() {
           personMap={personMap}
           expensePayers={expensePayers}
           participantNames={expenseParticipantNames}
-          onDelete={handleDeleteExpense}
         />
       )}
 
@@ -318,7 +317,7 @@ function TripExpenseCard({
   hide: boolean;
   payer?: Person;
   participants: string[];
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const category = getSplitCategoryMeta(expense.category);
@@ -374,11 +373,13 @@ function TripExpenseCard({
               {expense.note}
             </div>
           )}
-          <div className="flex justify-end">
-            <Button size="sm" variant="ghost" className="text-rose-600" onClick={onDelete}>
-              Delete expense
-            </Button>
-          </div>
+          {onDelete && (
+            <div className="flex justify-end">
+              <Button size="sm" variant="ghost" className="text-rose-600" onClick={onDelete}>
+                Delete expense
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </Card>
@@ -556,6 +557,7 @@ function BalancesPanel({
 }) {
   const navigate = useNavigate();
   const toast = useToast();
+  const [pendingUndoId, setPendingUndoId] = useState<string | null>(null);
   const personMap = new Map(people.map((person) => [person.id, person]));
   const memberPeople = members
     .map((member) => personMap.get(member.personId))
@@ -578,11 +580,12 @@ function BalancesPanel({
     }
   };
 
-  const deletePayment = async (settlement: SplitSettlement) => {
+  const undoPayment = async (settlement: SplitSettlement) => {
     await splitSettlementRepository.softDelete(settlement.id);
-    toast.show('Payment removed', {
+    setPendingUndoId(null);
+    toast.show('Payment undone. Balances recalculated.', {
       action: {
-        label: 'Undo',
+        label: 'Restore',
         onClick: () => void splitSettlementRepository.restore(settlement.id),
       },
       duration: UNDO_TIMEOUT_MS,
@@ -645,27 +648,47 @@ function BalancesPanel({
             {settlements.map((settlement) => {
               const from = personMap.get(settlement.fromPersonId);
               const to = personMap.get(settlement.toPersonId);
+              const confirmingUndo = pendingUndoId === settlement.id;
               return (
                 <Card key={settlement.id}>
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">
-                        {from?.isSelf ? 'You' : from?.name ?? 'Unknown'} paid {to?.isSelf ? 'you' : to?.name ?? 'Unknown'}
-                      </p>
-                      <p className="text-xs text-slate-500">{formatHumanDate(settlement.date)}</p>
-                    </div>
-                    <div className="text-right">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">
+                          {from?.isSelf ? 'You' : from?.name ?? 'Unknown'} paid {to?.isSelf ? 'you' : to?.name ?? 'Unknown'}
+                        </p>
+                        <p className="text-xs text-slate-500">{formatHumanDate(settlement.date)}</p>
+                      </div>
                       <p className="text-sm font-semibold tabular-nums text-emerald-600">
                         <Money value={{ amountMinor: settlement.amountMinor, currency }} hide={hide} />
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => void deletePayment(settlement)}
-                        className="mt-1 text-xs text-slate-400 hover:text-rose-600"
-                      >
-                        Remove
-                      </button>
                     </div>
+
+                    {confirmingUndo ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+                        <p className="text-xs text-amber-900 dark:text-amber-200">
+                          Undoing this payment recalculates the trip balance and may make a payment due again.
+                        </p>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => setPendingUndoId(null)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => void undoPayment(settlement)}>
+                            Undo payment
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setPendingUndoId(settlement.id)}
+                          className="text-xs text-slate-500 hover:text-rose-600"
+                        >
+                          Undo payment
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -707,7 +730,6 @@ function SearchPanel({
   personMap,
   expensePayers,
   participantNames,
-  onDelete,
 }: {
   expenses: SplitExpense[];
   currency: string;
@@ -715,7 +737,6 @@ function SearchPanel({
   personMap: Map<string, Person>;
   expensePayers: Map<string, string>;
   participantNames: Map<string, string[]>;
-  onDelete: (expense: SplitExpense) => Promise<void>;
 }) {
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase();
@@ -739,6 +760,9 @@ function SearchPanel({
         placeholder="Search title, payer, category or note…"
         autoFocus
       />
+      <p className="text-xs text-slate-500">
+        Search is read-only. Open the Expenses tab to remove a trip expense.
+      </p>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -755,7 +779,6 @@ function SearchPanel({
             hide={hide}
             payer={personMap.get(expensePayers.get(expense.id) ?? '')}
             participants={participantNames.get(expense.id) ?? []}
-            onDelete={() => void onDelete(expense)}
           />
         ))
       )}
