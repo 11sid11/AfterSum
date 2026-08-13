@@ -5,7 +5,7 @@ import { toDateOnly } from '@shared/dates';
 import type { RecoverySnapshot, RecoverySnapshotReason } from '@db/schema';
 
 const RECOVERY_DB_NAME = 'aftersum-recovery';
-const DAILY_RETENTION = 5;
+const ROLLING_DAILY_SNAPSHOT_ID = 'daily-latest';
 const PRE_RESTORE_RETENTION = 3;
 
 class RecoveryDB extends Dexie {
@@ -31,7 +31,15 @@ export async function listRecoverySnapshots(): Promise<RecoverySnapshot[]> {
 export async function ensureDailyRecoverySnapshot(now: Date = new Date()): Promise<void> {
   const today = toDateOnly(now);
   const existing = await getRecoveryDB().snapshots.where('reason').equals('daily').toArray();
-  if (existing.some((snapshot) => toDateOnly(new Date(snapshot.createdAt)) === today)) return;
+  const alreadyCapturedToday = existing.some(
+    (snapshot) => toDateOnly(new Date(snapshot.createdAt)) === today,
+  );
+
+  if (alreadyCapturedToday) {
+    await pruneSnapshots();
+    return;
+  }
+
   await createRecoverySnapshot('daily', now);
 }
 
@@ -41,11 +49,12 @@ export async function createRecoverySnapshot(
 ): Promise<RecoverySnapshot> {
   const backup = await exportBackup();
   const snapshot: RecoverySnapshot = {
-    id: newId(),
+    id: reason === 'daily' ? ROLLING_DAILY_SNAPSHOT_ID : newId(),
     createdAt: now.toISOString(),
     reason,
     payload: JSON.stringify(backup),
   };
+
   await getRecoveryDB().snapshots.put(snapshot);
   await pruneSnapshots();
   return snapshot;
@@ -74,16 +83,16 @@ async function pruneSnapshots(): Promise<void> {
   const snapshots = await listRecoverySnapshots();
   const keep = new Set<string>();
 
-  for (const reason of ['daily', 'before_restore'] as const) {
-    const limit = reason === 'daily' ? DAILY_RETENTION : PRE_RESTORE_RETENTION;
-    snapshots
-      .filter((snapshot) => snapshot.reason === reason)
-      .slice(0, limit)
-      .forEach((snapshot) => keep.add(snapshot.id));
-  }
+  const newestDaily = snapshots.find((snapshot) => snapshot.reason === 'daily');
+  if (newestDaily) keep.add(newestDaily.id);
+
+  snapshots
+    .filter((snapshot) => snapshot.reason === 'before_restore')
+    .slice(0, PRE_RESTORE_RETENTION)
+    .forEach((snapshot) => keep.add(snapshot.id));
 
   const expired = snapshots.filter((snapshot) => !keep.has(snapshot.id));
-  if (expired.length) {
+  if (expired.length > 0) {
     await getRecoveryDB().snapshots.bulkDelete(expired.map((snapshot) => snapshot.id));
   }
 }

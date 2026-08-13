@@ -323,20 +323,20 @@ export function BackupCenter() {
           <div>
             <h2 className="text-sm font-semibold">Automatic recovery</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Keeps up to five daily checkpoints and three pre-restore checkpoints on this device. These help with mistakes but cannot recover a lost or reset device.
+              Keeps one rolling daily checkpoint, replacing the previous automatic copy, plus up to three pre-restore safety checkpoints. These help with mistakes but cannot recover a lost or reset device.
             </p>
           </div>
         </div>
 
         {snapshots.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">Your first daily checkpoint will be created automatically.</p>
+          <p className="mt-3 text-xs text-slate-500">Your first automatic recovery checkpoint will be created automatically.</p>
         ) : (
           <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
             {snapshots.map((snapshot) => (
               <div key={snapshot.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
-                    {snapshot.reason === 'daily' ? 'Daily checkpoint' : 'Before restore'}
+                    {snapshot.reason === 'daily' ? 'Latest automatic recovery' : 'Before restore'}
                   </p>
                   <p className="text-xs text-slate-500">{formatHumanDateTime(snapshot.createdAt)}</p>
                 </div>
