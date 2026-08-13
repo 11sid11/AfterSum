@@ -51,6 +51,10 @@ export interface AppSettings extends BaseEntity {
   theme: AppTheme;
   hideAmounts: boolean;
   googleSyncEnabled: boolean;
+  /** Stable Google OpenID `sub`; use this to bind cloud data to an account. */
+  googleAccountId?: string;
+  /** Display-only label. Never use email as the account identity key. */
+  googleAccountEmail?: string;
   googleSpreadsheetId?: string;
   googleFolderId?: string;
   onboardingComplete: boolean;
