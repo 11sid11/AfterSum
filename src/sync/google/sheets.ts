@@ -116,11 +116,6 @@ export async function writeCloudBackup(
   assertGoogleAccount(session);
   const api = requireGoogleApiClient();
 
-  await api.sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `${BACKUP_SHEET}!A:B`,
-  });
-
   await api.sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${BACKUP_SHEET}!A1`,
@@ -174,9 +169,12 @@ function toCloudInfo(file: DriveFile): CloudBackupInfo {
 }
 
 function isMissingOrForbidden(error: unknown): boolean {
-  const status =
-    typeof error === 'object' && error !== null && 'status' in error
-      ? Number((error as { status?: unknown }).status)
+  if (typeof error !== 'object' || error === null) return false;
+  const direct = 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
+  const nested =
+    'result' in error
+      ? Number((error as { result?: { error?: { code?: unknown } } }).result?.error?.code)
       : undefined;
+  const status = Number.isFinite(direct) ? direct : nested;
   return status === 403 || status === 404;
 }
