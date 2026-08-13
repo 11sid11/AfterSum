@@ -27,7 +27,6 @@
     background-image:
       radial-gradient(circle at 12% -10%, rgb(74 96 220 / 0.08), transparent 30rem),
       radial-gradient(circle at 92% 0%, rgb(148 163 184 / 0.08), transparent 26rem);
-    background-attachment: fixed;
   }
 
   .dark body {
