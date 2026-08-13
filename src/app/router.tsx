@@ -4,9 +4,22 @@
  * Module landing pages and detail/form pages are siblings under
  * the root shell. This keeps the landing page from becoming a
  * layout route that would otherwise need to render an <Outlet />.
+ *
+ * Hash history is intentional: AfterSum is deployed as a static
+ * GitHub Pages PWA, where the server cannot rewrite arbitrary SPA
+ * paths back to index.html. The server only sees /AfterSum/ while
+ * the client owns everything after the hash, so refreshes, direct
+ * links and installed-PWA relaunches remain reliable.
  */
 
-import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router';
+import {
+  createHashHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router';
 import { RootLayout } from './layout/RootLayout';
 import { OverviewPage } from '@/routes/overview/OverviewPage';
 import { TrackPage } from '@/routes/track/TrackPage';
@@ -154,7 +167,13 @@ const routeTree = rootRoute.addChildren([
   backupRoute,
 ]);
 
-export const router = createRouter({ routeTree, defaultPreload: 'intent' });
+const history = createHashHistory();
+
+export const router = createRouter({
+  routeTree,
+  history,
+  defaultPreload: 'intent',
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

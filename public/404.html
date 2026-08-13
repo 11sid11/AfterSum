@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>AfterSum</title>
+    <script>
+      (() => {
+        const basePath = '/AfterSum/';
+        const { pathname, search } = window.location;
+
+        if (!pathname.startsWith(basePath)) {
+          window.location.replace(basePath);
+          return;
+        }
+
+        const routePath = pathname.slice(basePath.length);
+        const route = routePath ? `/${routePath}` : '/';
+        window.location.replace(`${basePath}#${route}${search}`);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Opening AfterSum…</p>
+  </body>
+</html>
