@@ -119,4 +119,8 @@
   .soft-surface {
     @apply rounded-2xl bg-slate-50/90 dark:bg-slate-800/55;
   }
+
+  .mobile-nav-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
 }
