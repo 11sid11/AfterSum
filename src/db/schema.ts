@@ -50,13 +50,8 @@ export interface AppSettings extends BaseEntity {
   defaultCurrency: CurrencyCode;
   theme: AppTheme;
   hideAmounts: boolean;
-  googleSyncEnabled: boolean;
-  /** Stable Google account subject identifier. */
-  googleAccountId?: string;
-  /** Display-only account label; never use email as the identity key. */
-  googleAccountEmail?: string;
-  googleSpreadsheetId?: string;
-  googleFolderId?: string;
+  /** Last time this device successfully handed a portable backup to the user. */
+  lastPortableBackupAt?: string;
   onboardingComplete: boolean;
 }
 
@@ -196,8 +191,28 @@ export interface LendEntry extends BaseEntity {
   note?: string;
 }
 
-// ---------- Sync ----------
+// ---------- Local recovery ----------
 
+export type RecoverySnapshotReason = 'daily' | 'before_restore';
+
+/**
+ * Local-only recovery point. The payload is the validated portable backup JSON.
+ * Recovery snapshots are deliberately excluded from portable backups so they
+ * cannot recursively contain themselves.
+ */
+export interface RecoverySnapshot {
+  id: string;
+  createdAt: string;
+  reason: RecoverySnapshotReason;
+  payload: string;
+}
+
+// ---------- Legacy change tracking ----------
+
+/**
+ * These types remain for database compatibility with the existing local write
+ * pipeline. They do not imply a network service or cloud account.
+ */
 export type SyncOp = 'create' | 'update' | 'delete';
 
 export interface SyncQueueItem extends BaseEntity {
@@ -231,6 +246,7 @@ export type SyncStatus =
   | 'error';
 
 export interface SyncMetadata extends BaseEntity {
+  /** Legacy key retained to avoid a destructive IndexedDB migration. */
   id: 'google';
   status: SyncStatus;
   dirty: boolean;
