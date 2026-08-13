@@ -1,27 +1,21 @@
 /**
  * Data & Backup page.
  *
- * Only working local/export/restore capabilities are presented.
- * Cloud controls stay hidden until the integration is functional.
+ * IndexedDB remains canonical. Local exports and optional Google Sheets
+ * backups are explicit user actions.
  */
 
 import { useEffect, useState } from 'react';
 import { Card, Button, useToast, Spinner } from '@components/ui';
 import { Database, Download, Upload, FileSpreadsheet } from 'lucide-react';
-import {
-  exportBackup,
-  validateBackup,
-  restoreBackup,
-  summarizeBackup,
-  type Backup,
-} from '@/export/json/backup';
+import { exportBackup, validateBackup, restoreBackup, summarizeBackup } from '@/export/json/backup';
 import { buildFullZip } from '@/export/zip/builder';
 import { csvOfTrackTransactions } from '@/export/csv/serializer';
 import { getDB } from '@db/database';
 import { toMonthKey } from '@shared/dates';
 import { persistBrowserStorage, isPersisted } from '@shared/storage';
-import { markDirty } from '@sync/status';
 import { useAppSettings } from '@shared/settings/useSettings';
+import { GoogleSheetsBackupCard } from './GoogleSheetsBackupCard';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -63,8 +57,7 @@ export function BackupPage() {
     setBusy('restore');
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text);
-      const valid = validateBackup(parsed);
+      const valid = validateBackup(JSON.parse(text));
       const summary = summarizeBackup(valid);
 
       const safety = await exportBackup();
@@ -73,7 +66,6 @@ export function BackupPage() {
       downloadBlob(safetyBlob, `aftersum-pre-restore-${stamp}.json`);
 
       await restoreBackup(valid);
-      await markDirty();
       toast.show(
         `Restored ${summary.people} people, ${summary.trackTransactions} Track, ${summary.splitExpenses} Split, ${summary.lendEntries} Lend entries. Safety backup downloaded.`,
       );
@@ -123,7 +115,9 @@ export function BackupPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-lg font-semibold">Data &amp; Backup</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Your data is stored on this device unless you export it.</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Your data stays on this device unless you explicitly export or back it up.
+        </p>
       </header>
 
       <Card>
@@ -154,6 +148,8 @@ export function BackupPage() {
           </div>
         )}
       </Card>
+
+      <GoogleSheetsBackupCard />
 
       <Card>
         <h2 className="section-title mb-2">Back up or inspect your data</h2>
@@ -194,5 +190,3 @@ export function BackupPage() {
     </div>
   );
 }
-
-void ({} as Backup);
