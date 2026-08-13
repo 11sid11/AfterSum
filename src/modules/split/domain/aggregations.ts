@@ -32,6 +32,10 @@ export interface GroupAggregateInputs {
   selfPersonId?: string;
 }
 
+function activeExpenseIds(input: GroupAggregateInputs): Set<string> {
+  return new Set(input.expenses.filter((expense) => !expense.deletedAt).map((expense) => expense.id));
+}
+
 /** Total amount of money spent in the group (sum of all active expenses). */
 export function groupSpendingTotal(input: GroupAggregateInputs): number {
   return sumMinor(
@@ -41,27 +45,29 @@ export function groupSpendingTotal(input: GroupAggregateInputs): number {
   );
 }
 
-/** The current user's allocated share of the group's total. */
+/** The current user's allocated share of active group expenses. */
 export function myShare(input: GroupAggregateInputs): number {
   const self = input.selfPersonId;
   if (!self) return 0;
+  const expenseIds = activeExpenseIds(input);
   return sumMinor(
     input.shares
-      .filter((s) => !s.deletedAt)
-      .filter((s) => s.personId === self)
-      .map((s) => s.amountMinor),
+      .filter((share) => !share.deletedAt && expenseIds.has(share.expenseId))
+      .filter((share) => share.personId === self)
+      .map((share) => share.amountMinor),
   );
 }
 
-/** The current user's total payments to the group. */
+/** The current user's total payments for active group expenses. */
 export function myPaid(input: GroupAggregateInputs): number {
   const self = input.selfPersonId;
   if (!self) return 0;
+  const expenseIds = activeExpenseIds(input);
   return sumMinor(
     input.payers
-      .filter((p) => !p.deletedAt)
-      .filter((p) => p.personId === self)
-      .map((p) => p.amountMinor),
+      .filter((payer) => !payer.deletedAt && expenseIds.has(payer.expenseId))
+      .filter((payer) => payer.personId === self)
+      .map((payer) => payer.amountMinor),
   );
 }
 
