@@ -1,13 +1,8 @@
 /**
  * Local sync state.
  *
- * Tracks the global sync metadata row. Any module mutation
- * flips `dirty` to true; the actual Google sync is opt-in and
- * happens on a debounced timer or on user request.
- *
- * Manual sheet edits are never interpreted as app actions —
- * Google is treated as a one-way push + explicit restore, not
- * a distributed event log.
+ * Any module mutation flips `dirty` to true. Google backup is opt-in and
+ * user-triggered; manual Sheet edits are never interpreted as app actions.
  */
 
 import { getDB } from '@db/database';
@@ -70,5 +65,16 @@ export async function markDirty(): Promise<void> {
 }
 
 export async function markSynced(): Promise<void> {
-  await setSyncStatus('synced', { lastSuccessfulSyncAt: nowISO() });
+  const db = getDB();
+  const cur = await getSyncMetadata();
+  const now = nowISO();
+  await db.syncMetadata.put({
+    ...cur,
+    status: 'synced',
+    dirty: false,
+    lastSuccessfulSyncAt: now,
+    lastError: undefined,
+    updatedAt: now,
+    revision: (cur.revision ?? 0) + 1,
+  });
 }
