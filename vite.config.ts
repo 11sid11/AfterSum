@@ -44,8 +44,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        // Financial records live in IndexedDB, never in the SW cache.
-        navigateFallback: '/index.html',
+        // Hash routing keeps normal app navigation at the PWA scope root.
+        // Keep the app-shell fallback relative so Workbox resolves it
+        // against the deployed service-worker scope (/AfterSum/ on Pages).
+        navigateFallback: 'index.html',
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'image',
