@@ -60,7 +60,10 @@ export function GoogleSheetsBackupCard() {
 
   const session = getGoogleSession();
   const authorizedForBoundAccount =
-    !!session && !!settings.googleAccountId && session.accountId === settings.googleAccountId;
+    auth.authorized &&
+    !!session &&
+    !!settings.googleAccountId &&
+    session.accountId === settings.googleAccountId;
 
   const connect = async () => {
     setBusy('connect');
@@ -274,7 +277,7 @@ export function GoogleSheetsBackupCard() {
             <Button
               variant="secondary"
               onClick={() => void restoreFromGoogle()}
-              disabled={!!busy || !authorizedForBoundAccount || cloud === null}
+              disabled={!!busy || !authorizedForBoundAccount || !cloud}
             >
               {busy === 'restore-cloud' ? <Spinner /> : <CloudDownload size={16} />} Restore from Google
             </Button>
