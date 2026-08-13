@@ -1,9 +1,5 @@
 /**
  * Shared view for a single month of Track data.
- *
- * Used by both `/track` (defaults to current month) and
- * `/track/month/$year/$month`. Reads its data through
- * `useTrackMonthlySummary` and the other live queries.
  */
 
 import { useNavigate } from '@tanstack/react-router';
@@ -11,11 +7,7 @@ import { Plus, Settings, Wallet, ListFilter } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Money, EmptyState, Spinner } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
-import {
-  useTrackMonthlySummary,
-  useTrackTransactionsForMonth,
-  useRecentTrackTransactions,
-} from '../queries';
+import { useTrackMonthlySummary, useTrackTransactionsForMonth } from '../queries';
 import { todayDateOnly, toMonthKey } from '@shared/dates';
 import { MonthNavigator } from './MonthNavigator';
 import { TransactionListItem } from './TransactionListItem';
@@ -24,7 +16,7 @@ import type { TrackTransactionType } from '@db/schema';
 import type { TrackTransactionFilters } from '../domain/types';
 
 interface TrackMonthViewProps {
-  month: string; // YYYY-MM
+  month: string;
   showFilters?: boolean;
 }
 
@@ -32,7 +24,6 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
   const navigate = useNavigate();
   const settings = useAppSettings();
   const summary = useTrackMonthlySummary(month);
-  const recent = useRecentTrackTransactions(5);
   const [type, setType] = useState<TrackTransactionType | undefined>(undefined);
   const [text, setText] = useState('');
 
@@ -46,7 +37,6 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
   const isCurrentMonth = month === currentMonth;
   const hide = settings?.hideAmounts ?? false;
 
-  // If the month param is malformed, send the user back to /track.
   useEffect(() => {
     if (!/^\d{4}-\d{2}$/.test(month)) {
       navigate({ to: '/track', replace: true });
@@ -81,18 +71,10 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
           <button
             type="button"
             onClick={() => navigate({ to: '/track/budget', search: { month } })}
-            aria-label="Budget"
+            aria-label="Monthly budget"
             className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <Wallet size={18} />
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate({ to: '/track/recurring' })}
-            aria-label="Recurring"
-            className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <ListFilter size={18} />
           </button>
         </div>
       </header>
@@ -118,28 +100,25 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
               <div className="mb-1 flex items-center justify-between text-sm">
                 <span className="font-medium">Budget</span>
                 <span className="text-slate-500">
-                  <Money
-                    value={{ amountMinor: summary.budget.remainingMinor, currency: summary.currency }}
-                    hide={hide}
-                  />{' '}
-                  left
+                  {summary.budget.remainingMinor >= 0 ? (
+                    <>
+                      <Money value={{ amountMinor: summary.budget.remainingMinor, currency: summary.currency }} hide={hide} /> left
+                    </>
+                  ) : (
+                    <>
+                      Over by <Money value={{ amountMinor: Math.abs(summary.budget.remainingMinor), currency: summary.currency }} hide={hide} />
+                    </>
+                  )}
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                 <div
-                  className={
-                    summary.budget.percent > 100 ? 'h-full rounded-full bg-rose-500' : 'h-full rounded-full bg-brand-500'
-                  }
+                  className={summary.budget.percent > 100 ? 'h-full rounded-full bg-rose-500' : 'h-full rounded-full bg-brand-500'}
                   style={{ width: `${Math.min(100, summary.budget.percent)}%` }}
                 />
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                of{' '}
-                <Money
-                  value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }}
-                  hide={hide}
-                />{' '}
-                · {summary.budget.percent}%
+                of <Money value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }} hide={hide} /> · {summary.budget.percent}%
               </p>
             </div>
           )}
@@ -158,13 +137,11 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
       {showFilters && (
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 text-xs dark:border-slate-700 dark:bg-slate-900">
-            {(
-              [
-                { key: undefined, label: 'All' },
-                { key: 'expense' as const, label: 'Expense' },
-                { key: 'income' as const, label: 'Income' },
-              ]
-            ).map((opt) => (
+            {[
+              { key: undefined, label: 'All' },
+              { key: 'expense' as const, label: 'Expense' },
+              { key: 'income' as const, label: 'Income' },
+            ].map((opt) => (
               <button
                 key={opt.label}
                 type="button"
@@ -194,64 +171,47 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
       )}
 
       {summary.byCategory.length > 0 && (
-        <Card>
+        <section>
           <h2 className="section-title mb-2">By category</h2>
-          <CategoryBreakdown
-            rows={summary.byCategory}
-            currency={summary.currency}
-            totalMinor={summary.spentMinor}
-          />
-        </Card>
+          <Card>
+            <CategoryBreakdown rows={summary.byCategory} currency={summary.currency} totalMinor={summary.spentMinor} />
+          </Card>
+        </section>
       )}
 
-      <Card padded={false}>
-        <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="section-title">Transactions</h2>
-        </div>
-        {(() => {
-          const list = monthTxs ?? [];
-          if (list.length === 0) {
-            return (
-              <div className="px-4 pb-4">
-                <EmptyState
-                  title="No transactions this month"
-                  description="Add your first one to start tracking."
-                  icon={<Wallet size={28} />}
-                  action={
-                    <Button onClick={() => onAdd('expense')}>
-                      <Plus size={16} /> Add expense
-                    </Button>
-                  }
-                />
-              </div>
-            );
-          }
-          return (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {list.slice(0, 8).map((t) => (
-                <li key={t.id}>
-                  <TransactionListItem transaction={t} />
-                </li>
-              ))}
-            </ul>
-          );
-        })()}
-      </Card>
-
-      {recent && recent.length > 0 && (
+      <section>
+        <h2 className="section-title mb-2">Transactions</h2>
         <Card padded={false}>
-          <div className="flex items-center justify-between px-4 py-3">
-            <h2 className="section-title">Recent</h2>
-          </div>
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {recent.map((t) => (
-              <li key={t.id}>
-                <TransactionListItem transaction={t} />
-              </li>
-            ))}
-          </ul>
+          {(() => {
+            const list = monthTxs ?? [];
+            if (list.length === 0) {
+              return (
+                <div className="px-4 py-4">
+                  <EmptyState
+                    title="No transactions this month"
+                    description="Add your first one to start tracking."
+                    icon={<Wallet size={28} />}
+                    action={
+                      <Button onClick={() => onAdd('expense')}>
+                        <Plus size={16} /> Add expense
+                      </Button>
+                    }
+                  />
+                </div>
+              );
+            }
+            return (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {list.map((t) => (
+                  <li key={t.id}>
+                    <TransactionListItem transaction={t} />
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
         </Card>
-      )}
+      </section>
 
       <div className="grid grid-cols-2 gap-2">
         <Button onClick={() => onAdd('expense')} block>
