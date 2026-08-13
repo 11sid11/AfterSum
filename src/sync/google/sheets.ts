@@ -170,11 +170,12 @@ function toCloudInfo(file: DriveFile): CloudBackupInfo {
 
 function isMissingOrForbidden(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
-  const direct = 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
+
+  const direct = 'status' in error ? Number((error as { status?: unknown }).status) : Number.NaN;
   const nested =
     'result' in error
       ? Number((error as { result?: { error?: { code?: unknown } } }).result?.error?.code)
-      : undefined;
+      : Number.NaN;
   const status = Number.isFinite(direct) ? direct : nested;
   return status === 403 || status === 404;
 }
