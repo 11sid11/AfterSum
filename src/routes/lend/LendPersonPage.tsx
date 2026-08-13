@@ -1,24 +1,13 @@
 /**
- * Lend person detail page (work.md §27).
- *
- * Shows:
- *   - Person name header
- *   - "X owes you" or "You owe X" total balance
- *   - All entries for that person (across all of their ledgers)
- *   - "+ Add entry" CTA
- *
- * Does NOT show Goa balances. Cross-currency totals are
- * shown as the per-currency balance for V1.
+ * Lend person detail page.
  */
 
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Plus } from 'lucide-react';
-import { Card, MoneySigned, Spinner, EmptyState, BalanceText } from '@components/ui';
+import { Card, Money, Spinner, EmptyState } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { usePerson } from '@shared/people/queries';
-import {
-  useLendPersonDetail,
-} from '@modules/lend/queries';
+import { useLendPersonDetail } from '@modules/lend/queries';
 import { LendEntryListItem } from '@modules/lend/components/LendEntryListItem';
 
 export function LendPersonPage() {
@@ -28,21 +17,7 @@ export function LendPersonPage() {
   const settings = useAppSettings();
   const detail = useLendPersonDetail(personId);
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-  if (!person) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-  if (!detail) {
+  if (!settings || !person || !detail) {
     return (
       <div className="grid min-h-[40vh] place-items-center">
         <Spinner />
@@ -51,7 +26,13 @@ export function LendPersonPage() {
   }
 
   const hide = !!settings.hideAmounts;
-  const { totalBalance, entries, ledgers, currency } = detail;
+  const { totalBalance, entries, currency } = detail;
+  const balanceLabel =
+    totalBalance > 0
+      ? `${person.name} owes you`
+      : totalBalance < 0
+        ? `You owe ${person.name}`
+        : 'Settled';
 
   return (
     <div className="space-y-4">
@@ -68,18 +49,14 @@ export function LendPersonPage() {
       </header>
 
       <Card>
-        <BalanceText amountMinor={totalBalance}>
-          <MoneySigned
-            amountMinor={Math.abs(totalBalance)}
-            currency={currency ?? settings.defaultCurrency}
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{balanceLabel}</p>
+        <p className={totalBalance > 0 ? 'mt-1 text-2xl font-semibold text-emerald-600' : totalBalance < 0 ? 'mt-1 text-2xl font-semibold text-rose-600' : 'mt-1 text-2xl font-semibold text-slate-500'}>
+          <Money
+            value={{ amountMinor: Math.abs(totalBalance), currency: currency ?? settings.defaultCurrency }}
             hide={hide}
+            emphasize
           />
-        </BalanceText>
-        {ledgers.length > 1 && (
-          <p className="mt-2 text-xs text-slate-500">
-            Across {ledgers.length} ledgers
-          </p>
-        )}
+        </p>
       </Card>
 
       {entries.length === 0 ? (
@@ -90,41 +67,34 @@ export function LendPersonPage() {
             action={
               <button
                 type="button"
-                onClick={() =>
-                  navigate({ to: '/lend/add', search: { type: 'lent', personId: person.id } as never })
-                }
-                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+                onClick={() => navigate({ to: '/lend/add', search: { type: 'lent', personId: person.id } as never })}
+                className="inline-flex h-11 items-center gap-1.5 rounded-full bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
               >
-                <Plus size={16} />
-                Add entry
+                <Plus size={16} /> Add entry
               </button>
             }
           />
         </Card>
       ) : (
-        <ul className="space-y-2">
-          {entries.map((e) => (
-            <li key={e.id}>
-              <LendEntryListItem
-                entry={e}
-                person={person}
-                currency={currency ?? settings.defaultCurrency}
-              />
-            </li>
-          ))}
-        </ul>
+        <section>
+          <h2 className="section-title mb-2">History</h2>
+          <ul className="space-y-2">
+            {entries.map((e) => (
+              <li key={e.id}>
+                <LendEntryListItem entry={e} person={person} currency={currency ?? settings.defaultCurrency} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {entries.length > 0 && (
         <button
           type="button"
-          onClick={() =>
-            navigate({ to: '/lend/add', search: { type: 'lent', personId: person.id } as never })
-          }
+          onClick={() => navigate({ to: '/lend/add', search: { type: 'lent', personId: person.id } as never })}
           className="fixed bottom-24 right-4 z-20 inline-flex h-12 items-center gap-1.5 rounded-full bg-brand-600 px-5 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 sm:bottom-6"
         >
-          <Plus size={16} />
-          Add entry
+          <Plus size={16} /> Add entry
         </button>
       )}
     </div>
