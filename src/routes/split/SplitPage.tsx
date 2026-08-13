@@ -1,10 +1,9 @@
 /**
  * Split dashboard.
  *
- * Lists every active group with the current user's net
- * position per group, plus a "Create group" CTA. Group
- * creation includes member selection so a group is usable
- * immediately after it is created.
+ * Lists every active trip with the current user's net
+ * position, plus a "Create trip" CTA. Trip creation includes
+ * participant selection so it is usable immediately.
  */
 
 import { useNavigate } from '@tanstack/react-router';
@@ -38,10 +37,10 @@ export function SplitPage() {
           onClick={() => setCreateOpen(true)}
           size="sm"
           disabled={!self}
-          aria-label="Create group"
+          aria-label="Create trip"
         >
           <Plus size={16} />
-          New group
+          New trip
         </Button>
       </div>
 
@@ -52,12 +51,12 @@ export function SplitPage() {
       ) : groups.length === 0 ? (
         <EmptyState
           icon={<Users size={32} />}
-          title="No groups yet"
-          description="Create a trip or group to split shared expenses."
+          title="No trips yet"
+          description="Create a trip to split shared expenses with friends."
           action={
             <Button onClick={() => setCreateOpen(true)} disabled={!self}>
               <Plus size={16} />
-              Create group
+              Create trip
             </Button>
           }
         />
@@ -76,7 +75,7 @@ export function SplitPage() {
       )}
 
       {createOpen && self && (
-        <CreateGroupModal
+        <CreateTripModal
           defaultCurrency={defaultCurrency}
           selfPersonId={self.id}
           onClose={() => setCreateOpen(false)}
@@ -90,14 +89,14 @@ export function SplitPage() {
   );
 }
 
-interface CreateGroupModalProps {
+interface CreateTripModalProps {
   defaultCurrency: string;
   selfPersonId: string;
   onClose: () => void;
   onCreated: (groupId: string) => void;
 }
 
-function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }: CreateGroupModalProps) {
+function CreateTripModal({ defaultCurrency, selfPersonId, onClose, onCreated }: CreateTripModalProps) {
   const people = usePeople();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -141,13 +140,10 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Group name is required');
+      setError('Trip name is required');
       return;
     }
 
-    // Treat a name still sitting in the "Add someone new" field as
-    // intentional input. The user should not have to tap Add before
-    // tapping Create group.
     const membersToAttach = new Set(selectedMemberIds);
     const peopleToCreate = [...pendingPeople];
     const inlineName = newPersonName.trim();
@@ -172,7 +168,7 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
         currency,
       });
 
-      // The current user is always part of a Split group.
+      // The current user is always part of a Split trip.
       await splitGroupMemberRepository.getOrCreate(group.id, selfPersonId);
 
       for (const personId of membersToAttach) {
@@ -186,17 +182,17 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
 
       onCreated(group.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create group');
+      setError(err instanceof Error ? err.message : 'Failed to create trip');
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal open onClose={onClose} title="New group">
+    <Modal open onClose={onClose} title="New trip">
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="space-y-3">
           <Input
-            label="Group name"
+            label="Trip name"
             name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -220,9 +216,7 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
               aria-label="Currency"
             >
               {['INR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'SGD', 'AED'].map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
@@ -230,16 +224,14 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
 
         <section className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
           <div>
-            <h2 className="text-sm font-semibold">Who's in this group?</h2>
+            <h2 className="text-sm font-semibold">Who's in this trip?</h2>
             <p className="mt-1 text-xs text-slate-500">
               You're included automatically. Select existing people or add someone new.
             </p>
           </div>
 
           {people === undefined ? (
-            <div className="flex justify-center py-3">
-              <Spinner />
-            </div>
+            <div className="flex justify-center py-3"><Spinner /></div>
           ) : selectablePeople.length > 0 ? (
             <MemberSelector
               people={selectablePeople}
@@ -264,12 +256,7 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
                 disabled={submitting}
               />
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={addPendingPerson}
-              disabled={submitting || !newPersonName.trim()}
-            >
+            <Button type="button" variant="secondary" onClick={addPendingPerson} disabled={submitting || !newPersonName.trim()}>
               Add
             </Button>
           </div>
@@ -277,16 +264,11 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
           {pendingPeople.length > 0 && (
             <div className="flex flex-wrap gap-2" aria-label="New people to add">
               {pendingPeople.map((personName) => (
-                <span
-                  key={personName}
-                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800"
-                >
+                <span key={personName} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800">
                   {personName}
                   <button
                     type="button"
-                    onClick={() =>
-                      setPendingPeople((current) => current.filter((name) => name !== personName))
-                    }
+                    onClick={() => setPendingPeople((current) => current.filter((item) => item !== personName))}
                     disabled={submitting}
                     className="rounded-full p-0.5 text-slate-500 hover:text-slate-900 dark:hover:text-white"
                     aria-label={`Remove ${personName}`}
@@ -302,11 +284,9 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>Cancel</Button>
           <Button type="submit" disabled={submitting || !name.trim() || people === undefined}>
-            {submitting ? 'Creating…' : 'Create group'}
+            {submitting ? 'Creating…' : 'Create trip'}
           </Button>
         </div>
       </form>
