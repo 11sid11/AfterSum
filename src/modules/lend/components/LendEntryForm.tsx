@@ -1,24 +1,5 @@
 /**
- * LendEntryForm — the form used by the "Add lend entry" page.
- *
- * Uses TanStack Form with the Zod schema from
- * `modules/lend/domain/validation`. The currency is
- * implied by the person's first active ledger (created
- * on-demand if the person has no Lend ledger yet).
- *
- * The form supports a `defaultType` prop and a
- * `defaultPersonId` so the same component can serve
- * "Add from Lend home" and "Add for Rahul" flows.
- *
- * Form shape (per `LendEntryInputSchema`):
- *   - personId: string    (the form's "person" picker value)
- *   - type: LendEntryType
- *   - amountMinor: number
- *   - date: string
- *   - dueDate?: string
- *   - note?: string
- *
- * The ledger is resolved (or created) at submit time.
+ * LendEntryForm — normal user flow for lending and repayments.
  */
 
 import { useForm } from '@tanstack/react-form';
@@ -27,7 +8,6 @@ import { z } from 'zod';
 import {
   Card,
   Button,
-  Input,
   Textarea,
   MoneyInput,
   DateInput,
@@ -45,9 +25,6 @@ import type { CurrencyCode } from '@shared/money';
 import { ArrowLeft } from 'lucide-react';
 import { useLendLedgerForPerson } from '../queries';
 
-// Use a permissive schema at the form level so we can
-// validate incrementally and convert `personId` to
-// `ledgerId` at submit time.
 const FormSchema = z.object({
   personId: z.string().min(1, 'Please select a person'),
   type: LendEntryTypeSchema,
@@ -58,15 +35,13 @@ const FormSchema = z.object({
 });
 type FormValues = z.infer<typeof FormSchema>;
 
-const TYPE_OPTIONS: Array<{ value: LendEntryType; label: string; tone: 'emerald' | 'rose' | 'sky' | 'slate' }> = [
-  { value: 'lent', label: 'Lent', tone: 'emerald' },
-  { value: 'borrowed', label: 'Borrowed', tone: 'rose' },
-  { value: 'repayment_received', label: 'Repaid me', tone: 'sky' },
-  { value: 'repayment_given', label: 'I repaid', tone: 'sky' },
-  { value: 'adjustment', label: 'Adjustment', tone: 'slate' },
+const TYPE_OPTIONS: Array<{ value: LendEntryType; label: string; tone: 'emerald' | 'rose' | 'sky' }> = [
+  { value: 'lent', label: 'I lent money', tone: 'emerald' },
+  { value: 'borrowed', label: 'I borrowed money', tone: 'rose' },
+  { value: 'repayment_received', label: 'They repaid me', tone: 'sky' },
+  { value: 'repayment_given', label: 'I repaid them', tone: 'sky' },
 ];
 
-/** Extract a human-readable error string from TanStack Form's `meta.errors`. */
 function extractError(errors: ReadonlyArray<unknown>): string | undefined {
   for (const e of errors) {
     if (e === undefined || e === null) continue;
@@ -80,28 +55,24 @@ function extractError(errors: ReadonlyArray<unknown>): string | undefined {
 }
 
 interface LendEntryFormProps {
-  /** Prefilled entry type. */
   defaultType?: LendEntryType;
-  /** Prefilled person id (used when launched from a person detail page). */
   defaultPersonId?: string;
-  /** Called after successful submit. */
   onSaved?: (entryId: string) => void;
-  /** Called when the user cancels. */
   onCancel?: () => void;
 }
 
 function typeHelp(type: LendEntryType): string {
   switch (type) {
     case 'lent':
-      return 'Add money you gave to this person. Increases the amount they owe you.';
+      return 'Money you gave this person. This increases what they owe you.';
     case 'borrowed':
-      return 'Add money you received from this person. Increases the amount you owe them.';
+      return 'Money you received from this person. This increases what you owe them.';
     case 'repayment_received':
-      return 'Record a payment you received. Decreases the amount they owe you.';
+      return 'A payment you received from this person.';
     case 'repayment_given':
-      return 'Record a payment you made. Decreases the amount you owe them.';
+      return 'A payment you made to this person.';
     case 'adjustment':
-      return 'Use a positive number if they still owe you, negative if you owe them.';
+      return 'Adjustment';
   }
 }
 
@@ -114,8 +85,6 @@ export function LendEntryForm({
   const settings = useAppSettings();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
-  // Live read of the resolved currency for the chosen
-  // person so the MoneyInput can switch on the fly.
   const [personId, setPersonId] = useState<string | undefined>(defaultPersonId);
   const existingLedger = useLendLedgerForPerson(personId, settings?.defaultCurrency ?? 'INR');
   const resolvedCurrency: CurrencyCode = existingLedger?.currency ?? settings?.defaultCurrency ?? 'INR';
@@ -139,21 +108,12 @@ export function LendEntryForm({
 
   const form = useForm({
     defaultValues: initialValues,
-    validators: {
-      onChange: FormSchema,
-    },
+    validators: { onChange: FormSchema },
     onSubmit: async ({ value }) => {
       setSubmitting(true);
       try {
-        if (!value.personId) {
-          throw new Error('Please select a person');
-        }
-        // Resolve (or create) the ledger for the chosen
-        // person in the active currency.
-        const ledger = await lendLedgerRepository.getOrCreate(
-          value.personId,
-          resolvedCurrency,
-        );
+        if (!value.personId) throw new Error('Please select a person');
+        const ledger = await lendLedgerRepository.getOrCreate(value.personId, resolvedCurrency);
         const cleaned: z.infer<typeof LendEntryInputSchema> = {
           ledgerId: ledger.id,
           type: value.type,
@@ -164,9 +124,7 @@ export function LendEntryForm({
         };
         const created = await lendEntryRepository.create(cleaned);
         toast.show('Entry added', { variant: 'success' });
-        if (onSaved) {
-          onSaved(created.id);
-        }
+        onSaved?.(created.id);
       } catch (err) {
         toast.show(err instanceof Error ? err.message : 'Could not save', { variant: 'error' });
         setSubmitting(false);
@@ -192,25 +150,23 @@ export function LendEntryForm({
         >
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-lg font-semibold">Add lend entry</h1>
+        <h1 className="text-lg font-semibold">Add Lend entry</h1>
       </header>
 
       <Card>
         <form.Field name="type">
           {(field) => (
-            <div className="space-y-1">
-              <label className="label">Type</label>
-              <div className="inline-flex w-full flex-wrap gap-1 rounded-full border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="space-y-2">
+              <label className="label">What happened?</label>
+              <div className="grid grid-cols-2 gap-2">
                 {TYPE_OPTIONS.map((opt) => {
                   const active = field.state.value === opt.value;
                   const toneActive =
                     opt.tone === 'emerald'
-                      ? 'bg-emerald-600 text-white'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200'
                       : opt.tone === 'rose'
-                        ? 'bg-rose-600 text-white'
-                        : opt.tone === 'sky'
-                          ? 'bg-sky-600 text-white'
-                          : 'bg-slate-700 text-white';
+                        ? 'border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200'
+                        : 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-200';
                   return (
                     <button
                       key={opt.value}
@@ -219,8 +175,8 @@ export function LendEntryForm({
                       aria-pressed={active}
                       className={
                         active
-                          ? `flex-1 rounded-full px-3 py-1.5 font-medium ${toneActive}`
-                          : 'flex-1 rounded-full px-3 py-1.5 text-slate-600 dark:text-slate-300'
+                          ? `min-h-11 rounded-xl border px-3 py-2 text-sm font-medium ${toneActive}`
+                          : 'min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300'
                       }
                     >
                       {opt.label}
@@ -238,12 +194,7 @@ export function LendEntryForm({
         <div className="space-y-3">
           <form.Field
             name="personId"
-            validators={{
-              onChange: ({ value }) => {
-                if (!value) return 'Please select a person';
-                return undefined;
-              },
-            }}
+            validators={{ onChange: ({ value }) => (!value ? 'Please select a person' : undefined) }}
           >
             {(field) => (
               <PersonPicker
@@ -260,81 +211,52 @@ export function LendEntryForm({
           </form.Field>
 
           <form.Field name="amountMinor">
-            {(field) => {
-              const isAdjustment = form.getFieldValue('type') === 'adjustment';
-              return (
-                <MoneyInput
-                  label={isAdjustment ? 'Signed amount' : 'Amount'}
-                  value={field.state.value}
-                  currency={resolvedCurrency}
-                  onChange={(v) => field.handleChange(v)}
-                  hint={
-                    isAdjustment
-                      ? 'Positive: they owe you. Negative: you owe them.'
-                      : undefined
-                  }
-                  error={extractError(field.state.meta.errors)}
-                />
-              );
-            }}
-          </form.Field>
-
-          <form.Field name="date">
             {(field) => (
-              <DateInput
-                label="Date"
+              <MoneyInput
+                label="Amount"
                 value={field.state.value}
-                onChange={(d) => field.handleChange(d)}
+                currency={resolvedCurrency}
+                onChange={(v) => field.handleChange(v)}
                 error={extractError(field.state.meta.errors)}
               />
             )}
           </form.Field>
 
-          <form.Field name="dueDate">
+          <form.Field name="date">
             {(field) => (
-              <DateInput
-                label="Due date (optional)"
-                value={(field.state.value as string | undefined) ?? undefined}
-                onChange={(d) => field.handleChange(d)}
-              />
+              <DateInput label="Date" value={field.state.value} onChange={(d) => field.handleChange(d)} error={extractError(field.state.meta.errors)} />
             )}
           </form.Field>
 
-          <form.Field name="note">
-            {(field) => (
-              <Textarea
-                label="Note"
-                name={field.name}
-                value={field.state.value ?? ''}
-                onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value)}
-                maxLength={500}
-              />
-            )}
-          </form.Field>
+          <details className="rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700">
+            <summary className="cursor-pointer text-sm font-medium">More details</summary>
+            <div className="mt-3 space-y-3">
+              <form.Field name="dueDate">
+                {(field) => (
+                  <DateInput label="Due date (optional)" value={(field.state.value as string | undefined) ?? undefined} onChange={(d) => field.handleChange(d)} />
+                )}
+              </form.Field>
+              <form.Field name="note">
+                {(field) => (
+                  <Textarea
+                    label="Note"
+                    name={field.name}
+                    value={field.state.value ?? ''}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    maxLength={500}
+                  />
+                )}
+              </form.Field>
+            </div>
+          </details>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save'}
-        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>Cancel</Button>
+        <Button type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save entry'}</Button>
       </div>
-
-      <Card>
-        <p className="text-xs text-slate-500">
-          Amounts are stored as integer minor units. The currency of the entry follows the
-          chosen person's Lend ledger; the ledger is created automatically on first entry.
-        </p>
-      </Card>
-
-      {/* Silence unused import warnings for Input (kept for future form fields) */}
-      <span className="hidden" aria-hidden>
-        <Input name="_unused" />
-      </span>
     </form>
   );
 }
