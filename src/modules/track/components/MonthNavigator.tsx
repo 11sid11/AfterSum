@@ -1,10 +1,4 @@
-/**
- * MonthNavigator — month label + previous/next arrows.
- *
- * Renders three buttons: prev, the current month label,
- * and next. Disabling "next" when the month is the current
- * calendar month is optional and controlled by the caller.
- */
+/** Month label with previous/next navigation. */
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
@@ -16,67 +10,45 @@ const MONTH_LABELS = [
 ];
 
 function formatMonth(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  const name = MONTH_LABELS[(m ?? 1) - 1] ?? '';
-  return `${name} ${y}`;
+  const [year, monthNumber] = month.split('-').map(Number);
+  const name = MONTH_LABELS[(monthNumber ?? 1) - 1] ?? '';
+  return `${name} ${year}`;
 }
 
 interface MonthNavigatorProps {
-  month: string; // YYYY-MM
-  /** Where the prev/next buttons should route. */
-  to?: string; // route base
-  /** Optional: disable "next" when on current month. */
+  month: string;
+  to?: string;
   disableNextIfCurrent?: boolean;
-  /** Current month to compare against. */
   currentMonth?: string;
-  /** Optional search-params passthrough. */
   search?: Record<string, unknown>;
 }
 
-export function MonthNavigator({
-  month,
-  to = '/track/month/$year/$month',
-  disableNextIfCurrent = false,
-  currentMonth,
-  search,
-}: MonthNavigatorProps) {
+export function MonthNavigator({ month, to = '/track/month/$year/$month', disableNextIfCurrent = false, currentMonth, search }: MonthNavigatorProps) {
   const prev = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
   const nextDisabled = disableNextIfCurrent && currentMonth ? next > currentMonth : false;
-  const [year, m] = month.split('-');
-  const [prevYear, prevM] = prev.split('-');
-  const [nextYear, nextM] = next.split('-');
+  const [year, currentMonthNumber] = month.split('-');
+  const [prevYear, prevMonth] = prev.split('-');
+  const [nextYear, nextMonth] = next.split('-');
+
   return (
-    <div className="flex items-center justify-between gap-2">
-      <Link
-        to={to}
-        params={{ year: prevYear ?? '', month: prevM ?? '' }}
-        search={search}
-        aria-label="Previous month"
-        className="grid h-10 w-10 place-items-center rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-      >
-        <ChevronLeft size={20} />
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/75 p-1.5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/75">
+      <Link to={to} params={{ year: prevYear ?? '', month: prevMonth ?? '' }} search={search} aria-label="Previous month" className="icon-button border-0 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <ChevronLeft size={19} />
       </Link>
-      <div className="text-base font-semibold tracking-wide" data-testid="month-label">
-        {formatMonth(month)}
-      </div>
+      <div className="min-w-0 flex-1 text-center text-sm font-semibold tracking-tight sm:text-base" data-testid="month-label">{formatMonth(month)}</div>
       <Link
         to={to}
-        params={{ year: nextYear ?? '', month: nextM ?? '' }}
+        params={{ year: nextYear ?? '', month: nextMonth ?? '' }}
         search={search}
         aria-label="Next month"
         aria-disabled={nextDisabled}
         tabIndex={nextDisabled ? -1 : 0}
-        className={
-          nextDisabled
-            ? 'pointer-events-none grid h-10 w-10 place-items-center rounded-full text-slate-300 dark:text-slate-700'
-            : 'grid h-10 w-10 place-items-center rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-        }
+        className={nextDisabled ? 'pointer-events-none grid h-10 w-10 place-items-center rounded-xl text-slate-300 dark:text-slate-700' : 'icon-button border-0 hover:bg-slate-100 dark:hover:bg-slate-800'}
       >
-        <ChevronRight size={20} />
+        <ChevronRight size={19} />
       </Link>
-      {/* hidden params for the current month (used by callers to navigate programmatically) */}
-      <span className="sr-only" data-year={year} data-month={m} />
+      <span className="sr-only" data-year={year} data-month={currentMonthNumber} />
     </div>
   );
 }

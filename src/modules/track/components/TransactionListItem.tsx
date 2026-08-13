@@ -1,9 +1,4 @@
-/**
- * TransactionListItem — single row in a transaction list.
- *
- * Renders icon, title, category, date, and amount. Clicking
- * the row navigates to the transaction's detail page.
- */
+/** Single row in a Track transaction list. */
 
 import { Link } from '@tanstack/react-router';
 import { ArrowDownLeft, ArrowUpRight, ShoppingBag, type LucideIcon } from 'lucide-react';
@@ -41,36 +36,20 @@ export function TransactionListItem({ transaction, to = '/track/transaction/$tra
     <Link
       to={to}
       params={{ transactionId: transaction.id }}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+      className="group flex min-w-0 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/45 sm:px-5"
     >
-      <div
-        className={
-          isExpense
-            ? 'grid h-9 w-9 place-items-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'
-            : 'grid h-9 w-9 place-items-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300'
-        }
-      >
+      <div className={isExpense ? 'grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300' : 'grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300'}>
         <Icon size={16} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{transaction.title}</p>
-        <p className="truncate text-xs text-slate-500">
+        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{transaction.title}</p>
+        <p className="mt-0.5 truncate text-xs text-slate-500">
           {categoryName} · {formatHumanDate(transaction.date)}
           {transaction.paymentMethod ? ` · ${transaction.paymentMethod.toUpperCase()}` : ''}
         </p>
       </div>
-      <div
-        className={
-          isExpense
-            ? 'text-sm font-semibold text-rose-600 dark:text-rose-300'
-            : 'text-sm font-semibold text-emerald-600 dark:text-emerald-300'
-        }
-      >
-        <Money
-          value={{ amountMinor: transaction.amountMinor, currency: transaction.currency }}
-          hide={hide}
-          signed
-        />
+      <div className={isExpense ? 'shrink-0 text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-300' : 'shrink-0 text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-300'}>
+        <Money value={{ amountMinor: transaction.amountMinor, currency: transaction.currency }} hide={hide} signed />
       </div>
     </Link>
   );

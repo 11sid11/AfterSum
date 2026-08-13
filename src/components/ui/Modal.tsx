@@ -1,6 +1,4 @@
-/**
- * Modal — bottom sheet on mobile and centered card on larger screens.
- */
+/** Modal — bottom sheet on mobile and centered card on larger screens. */
 
 import { type ReactNode, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -39,23 +37,23 @@ export function Modal({ open, onClose, title, children, className, lockScroll = 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+      className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/45 backdrop-blur-[2px] sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
     >
       <div
         className={clsx(
-          'max-h-[calc(100dvh-0.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 shadow-xl dark:bg-slate-900 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl',
+          'max-h-[calc(100dvh-0.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border border-white/40 bg-white p-5 shadow-2xl dark:border-slate-700/60 dark:bg-slate-900 sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px] sm:p-6',
           className,
         )}
       >
-        <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center justify-between bg-white px-1 pb-1 dark:bg-slate-900">
-          <h2 className="min-w-0 truncate text-base font-semibold">{title}</h2>
+        <div className="sticky top-0 z-10 -mx-1 mb-4 flex items-center justify-between bg-white/95 px-1 pb-1 backdrop-blur dark:bg-slate-900/95">
+          <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="icon-button"
           >
             <X size={18} />
           </button>
