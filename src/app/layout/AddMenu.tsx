@@ -1,13 +1,13 @@
 /**
- * Universal Add menu.
+ * Universal Add menu shown from Overview only.
  *
- * Routes into the correct module form. V1 only routes into
- * Track, Split, Lend. Categories / members are added inside
- * the relevant forms.
+ * Split is intentionally omitted because adding a Split expense
+ * requires a real group context. Users enter Split through the
+ * module and choose the group first.
  */
 
 import { useNavigate } from '@tanstack/react-router';
-import { Receipt, Users, X, TrendingUp, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Receipt, X, TrendingUp, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 
 interface AddMenuProps {
   onClose: () => void;
@@ -30,12 +30,6 @@ export function AddMenu({ onClose }: AddMenuProps) {
       icon: TrendingUp,
     },
     {
-      label: 'Split expense',
-      to: '/split/group/new/add',
-      search: { type: 'expense' as const },
-      icon: Users,
-    },
-    {
       label: 'Lent money',
       to: '/lend/add',
       search: { type: 'lent' as const },
@@ -53,7 +47,7 @@ export function AddMenu({ onClose }: AddMenuProps) {
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog">
       <div className="w-full max-w-md animate-slide-up rounded-t-2xl bg-white p-4 dark:bg-slate-900 sm:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Add</h2>
+          <h2 className="text-base font-semibold">Quick add</h2>
           <button
             type="button"
             onClick={onClose}
@@ -83,6 +77,16 @@ export function AddMenu({ onClose }: AddMenuProps) {
             );
           })}
         </ul>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            navigate({ to: '/split' });
+          }}
+          className="mt-2 w-full rounded-lg px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          To split an expense, open Split and choose a group first.
+        </button>
       </div>
     </div>
   );

@@ -49,6 +49,20 @@ export const settingsRepository = {
   },
 
   async setDefaultCurrency(currency: string): Promise<AppSettings> {
+    const db = getDB();
+    const cur = await settingsRepository.get();
+    if (currency === cur.defaultCurrency) return cur;
+
+    const [trackTransactions, trackBudgets, splitGroups, lendLedgers] = await Promise.all([
+      db.trackTransactions.count(),
+      db.trackBudgets.count(),
+      db.splitGroups.count(),
+      db.lendLedgers.count(),
+    ]);
+    const hasFinancialData = trackTransactions + trackBudgets + splitGroups + lendLedgers > 0;
+    if (hasFinancialData) {
+      throw new Error('Default currency is locked after financial data has been recorded.');
+    }
     return settingsRepository.update({ defaultCurrency: currency });
   },
 

@@ -1,9 +1,5 @@
 /**
  * Add Lend entry page.
- *
- * Reads optional `?type=lent|borrowed|repayment_...` and
- * optional `?personId=...` from the search params. The
- * actual form is in `LendEntryForm`.
  */
 
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -15,7 +11,6 @@ const ALLOWED_TYPES: ReadonlyArray<LendEntryType> = [
   'borrowed',
   'repayment_received',
   'repayment_given',
-  'adjustment',
 ];
 
 export function LendAddPage() {

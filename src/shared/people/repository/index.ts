@@ -1,10 +1,9 @@
 /**
  * Person repository.
  *
- * Repositories are the only place that touch the Dexie
- * `people` table. The Track / Split / Lend modules all
- * read people from this repository indirectly via the
- * shared queries module.
+ * People are shared identities used by Split and Lend. Referenced
+ * people cannot be removed from active data because doing so would
+ * make existing balances and histories harder to understand.
  */
 
 import { getDB } from '@db/database';
@@ -24,7 +23,6 @@ function clean(input: Partial<PersonInput>): Partial<PersonInput> {
 }
 
 export const personRepository = {
-  /** List active (non-deleted) people, sorted by name then id. */
   async listActive(): Promise<Person[]> {
     const db = getDB();
     const all = await db.people.toArray();
@@ -37,38 +35,38 @@ export const personRepository = {
       });
   },
 
-  /** Get a single person by id. Returns undefined if not found. */
   async get(id: string): Promise<Person | undefined> {
     return getDB().people.get(id);
   },
 
-  /** Create a new person. Throws on invalid input. */
   async create(input: PersonInput): Promise<Person> {
     const parsed = PersonSchema.parse(input);
     const cleaned = clean(parsed);
     return repoCreate<Person>(getDB().people, cleaned as CreateInput<Person>);
   },
 
-  /** Update an existing person. */
   async update(id: string, patch: Partial<PersonInput>): Promise<Person> {
     const parsed = PersonSchema.partial().parse(patch);
     return repoUpdate<Person>(getDB().people, id, clean(parsed));
   },
 
-  /** Soft-delete a person. Self cannot be deleted. */
   async softDelete(id: string): Promise<void> {
-    if (id === SELF_PERSON_ID) {
-      throw new Error('Cannot delete the self person');
+    if (id === SELF_PERSON_ID) throw new Error('Cannot delete the self person');
+    const db = getDB();
+    const [splitMemberships, lendLedgers] = await Promise.all([
+      db.splitGroupMembers.where('personId').equals(id).count(),
+      db.lendLedgers.where('personId').equals(id).count(),
+    ]);
+    if (splitMemberships + lendLedgers > 0) {
+      throw new Error('This person has financial history and cannot be removed. Rename them instead.');
     }
-    return repoSoftDelete(getDB().people, id);
+    return repoSoftDelete(db.people, id);
   },
 
-  /** Restore a soft-deleted person. */
   async restore(id: string): Promise<void> {
     return repoRestore(getDB().people, id);
   },
 
-  /** Ensure the self Person exists; create if missing. */
   async ensureSelf(): Promise<Person> {
     const db = getDB();
     const existing = await db.people.get(SELF_PERSON_ID);
@@ -86,7 +84,6 @@ export const personRepository = {
     return self;
   },
 
-  /** Bulk-replace all people (used by JSON restore). */
   async replaceAll(people: Person[]): Promise<void> {
     const db = getDB();
     await db.people.clear();
