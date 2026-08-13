@@ -37,7 +37,7 @@ import { BalanceRow } from '@modules/split/components/BalanceRow';
 import { getSplitCategoryMeta } from '@modules/split/domain/categories';
 import { formatHumanDate, todayDateOnly } from '@shared/dates';
 import { UNDO_TIMEOUT_MS } from '@app/constants';
-import type { Person, SplitExpense } from '@db/schema';
+import type { Person, SplitExpense, SplitSettlement } from '@db/schema';
 
 type TripTab = 'expenses' | 'people' | 'balances' | 'search';
 
@@ -85,8 +85,12 @@ export function SplitGroupPage() {
   }
 
   const hide = settings?.hideAmounts ?? false;
-  const activeExpenses = raw.expenses.filter((expense) => !expense.deletedAt);
-  const activeSettlements = raw.settlements.filter((settlement) => !settlement.deletedAt);
+  const activeExpenses = raw.expenses
+    .filter((expense) => !expense.deletedAt)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
+  const activeSettlements = raw.settlements
+    .filter((settlement) => !settlement.deletedAt)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
   const activeMembers = raw.members.filter((member) => !member.deletedAt && member.active);
   const personMap = new Map(people.map((person) => [person.id, person]));
 
@@ -212,6 +216,7 @@ export function SplitGroupPage() {
           members={activeMembers}
           balances={balanceResult.balances}
           transfers={balanceResult.transfers}
+          settlements={activeSettlements}
           hide={hide}
         />
       )}
@@ -536,6 +541,7 @@ function BalancesPanel({
   members,
   balances,
   transfers,
+  settlements,
   hide,
 }: {
   groupId: string;
@@ -545,6 +551,7 @@ function BalancesPanel({
   members: Array<{ personId: string }>;
   balances: Map<string, number>;
   transfers: Array<{ fromPersonId: string; toPersonId: string; amountMinor: number }>;
+  settlements: SplitSettlement[];
   hide: boolean;
 }) {
   const navigate = useNavigate();
@@ -569,6 +576,17 @@ function BalancesPanel({
     } catch (err) {
       toast.show(err instanceof Error ? err.message : 'Could not record payment', { variant: 'error' });
     }
+  };
+
+  const deletePayment = async (settlement: SplitSettlement) => {
+    await splitSettlementRepository.softDelete(settlement.id);
+    toast.show('Payment removed', {
+      action: {
+        label: 'Undo',
+        onClick: () => void splitSettlementRepository.restore(settlement.id),
+      },
+      duration: UNDO_TIMEOUT_MS,
+    });
   };
 
   return (
@@ -617,6 +635,42 @@ function BalancesPanel({
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {settlements.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Recorded payments</h2>
+          <div className="space-y-2">
+            {settlements.map((settlement) => {
+              const from = personMap.get(settlement.fromPersonId);
+              const to = personMap.get(settlement.toPersonId);
+              return (
+                <Card key={settlement.id}>
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        {from?.isSelf ? 'You' : from?.name ?? 'Unknown'} paid {to?.isSelf ? 'you' : to?.name ?? 'Unknown'}
+                      </p>
+                      <p className="text-xs text-slate-500">{formatHumanDate(settlement.date)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold tabular-nums text-emerald-600">
+                        <Money value={{ amountMinor: settlement.amountMinor, currency }} hide={hide} />
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void deletePayment(settlement)}
+                        className="mt-1 text-xs text-slate-400 hover:text-rose-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 
