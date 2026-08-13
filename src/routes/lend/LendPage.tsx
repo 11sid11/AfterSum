@@ -1,6 +1,6 @@
 /** Lend dashboard. */
 
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, HandCoins, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button, Card, Money, Spinner, EmptyState } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
