@@ -34,26 +34,35 @@ export function SplitPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0"><h1 className="text-xl font-semibold">Split</h1><p className="text-xs text-slate-500">Trips are your shared-expense groups.</p></div>
+    <div className="space-y-6">
+      <header className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="page-title">Split</h1>
+          <p className="page-subtitle">Trips are simple groups for shared expenses and settlements.</p>
+        </div>
         <Button onClick={() => setCreateOpen(true)} size="sm" disabled={!ready} className="shrink-0"><Plus size={16} /> New trip</Button>
-      </div>
+      </header>
 
-      {!ready ? <div className="flex justify-center py-10"><Spinner /></div> : groups.length === 0 ? (
-        <EmptyState icon={<Users size={32} />} title="No active trips" description={archivedGroups.length > 0 ? 'Start a new trip or restore one from Archived trips below.' : 'Create a trip to split shared expenses with friends.'} action={<Button onClick={() => setCreateOpen(true)}><Plus size={16} /> Create trip</Button>} />
-      ) : (
-        <ul className="space-y-2">{groups.map((item) => <li key={item.group.id}><GroupCard group={item.group} yourNet={item.yourNet} expenseCount={item.expenseCount} /></li>)}</ul>
-      )}
+      <section>
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <h2 className="section-title">Active trips</h2>
+          {ready && groups.length > 0 && <span className="text-[11px] text-slate-400">{groups.length} active</span>}
+        </div>
+        {!ready ? <div className="flex justify-center py-10"><Spinner /></div> : groups.length === 0 ? (
+          <Card><EmptyState icon={<Users size={26} />} title="No active trips" description={archivedGroups.length > 0 ? 'Start a new trip or restore one from Archived trips below.' : 'Create a trip to split shared expenses with friends.'} action={<Button onClick={() => setCreateOpen(true)}><Plus size={16} /> Create trip</Button>} /></Card>
+        ) : (
+          <ul className="space-y-2.5">{groups.map((item) => <li key={item.group.id}><GroupCard group={item.group} yourNet={item.yourNet} expenseCount={item.expenseCount} /></li>)}</ul>
+        )}
+      </section>
 
       {ready && archivedGroups.length > 0 && (
-        <Card padded={false}>
+        <Card padded={false} className="overflow-hidden">
           <details>
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Archived trips ({archivedGroups.length})</summary>
+            <summary className="cursor-pointer px-4 py-3.5 text-sm font-semibold sm:px-5">Archived trips <span className="font-normal text-slate-400">({archivedGroups.length})</span></summary>
             <ul className="border-t border-slate-100 dark:border-slate-800">
               {archivedGroups.map((group) => (
-                <li key={group.id} className="flex min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 dark:border-slate-800">
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{group.name}</p><p className="text-xs text-slate-500">History is preserved</p></div>
+                <li key={group.id} className="flex min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0 dark:border-slate-800 sm:px-5">
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{group.name}</p><p className="mt-0.5 text-xs text-slate-500">History is preserved</p></div>
                   <Button size="sm" variant="secondary" className="shrink-0" onClick={() => void unarchive(group.id)}><ArchiveRestore size={15} /> Restore</Button>
                 </li>
               ))}
