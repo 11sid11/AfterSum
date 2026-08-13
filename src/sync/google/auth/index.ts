@@ -69,7 +69,7 @@ export interface GoogleApiClient {
 
 interface GapiRoot {
   load(name: string, callback: () => void): void;
-  client: GoogleApiClient & {
+  client?: GoogleApiClient & {
     init(input: { discoveryDocs: string[] }): Promise<void>;
   };
 }
@@ -112,7 +112,7 @@ export function getGoogleAuthState(): GoogleAuthState {
 }
 
 export function clearGoogleAuthState(): void {
-  window.gapi?.client.setToken(null);
+  window.gapi?.client?.setToken(null);
   state = { authorized: false };
 }
 
@@ -130,10 +130,11 @@ export function getGoogleSession(): GoogleSession | null {
 }
 
 export function requireGoogleApiClient(): GoogleApiClient {
-  if (!getGoogleSession() || !window.gapi?.client) {
+  const client = window.gapi?.client;
+  if (!getGoogleSession() || !client) {
     throw new Error('Google authorization expired. Reconnect and try again.');
   }
-  return window.gapi.client;
+  return client;
 }
 
 export async function requestGoogleAuthorization(options: {
@@ -146,8 +147,8 @@ export async function requestGoogleAuthorization(options: {
 
   await loadGoogleLibraries();
   const oauth2 = window.google?.accounts.oauth2;
-  const gapi = window.gapi;
-  if (!oauth2 || !gapi) throw new Error('Google libraries did not initialize.');
+  const api = window.gapi?.client;
+  if (!oauth2 || !api) throw new Error('Google libraries did not initialize.');
 
   const token = await new Promise<TokenResponse>((resolve, reject) => {
     const client = oauth2.initTokenClient({
@@ -185,9 +186,9 @@ export async function requestGoogleAuthorization(options: {
 
   // Hand the short-lived credential to Google's client library; AfterSum does
   // not persist or inspect it.
-  gapi.client.setToken(token);
+  api.setToken(token);
 
-  const about = await gapi.client.drive.about.get({ fields: 'user(permissionId,emailAddress)' });
+  const about = await api.drive.about.get({ fields: 'user(permissionId,emailAddress)' });
   const account = about.result.user;
   if (!account?.permissionId) throw new Error('Google account identity was unavailable.');
 
@@ -207,7 +208,13 @@ export async function disconnectGoogleAuthorization(): Promise<void> {
 }
 
 async function loadGoogleLibraries(): Promise<void> {
-  if (window.google?.accounts.oauth2 && window.gapi?.client.drive && window.gapi.client.sheets) return;
+  if (
+    window.google?.accounts.oauth2 &&
+    window.gapi?.client?.drive &&
+    window.gapi.client.sheets
+  ) {
+    return;
+  }
   if (loadPromise) return loadPromise;
 
   loadPromise = Promise.all([
@@ -230,7 +237,9 @@ async function loadGoogleLibraries(): Promise<void> {
         });
       });
 
-      await gapi.client.init({
+      const client = gapi.client;
+      if (!client) throw new Error('Google API client did not initialize.');
+      await client.init({
         discoveryDocs: [DRIVE_DISCOVERY_DOC, SHEETS_DISCOVERY_DOC],
       });
     })
