@@ -1,9 +1,4 @@
-/**
- * Global search across Track, Split, Lend, People.
- *
- * Returns results with their module context so the user
- * can jump straight into the right place.
- */
+/** Global search across Track, Split, Lend, and People. */
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -12,15 +7,24 @@ import { getDB } from '@db/database';
 import { Card, EmptyState, Input, Spinner } from '@components/ui';
 import { Search as SearchIcon, Receipt, Users, HandCoins, UserCircle } from 'lucide-react';
 import { formatHumanDate } from '@shared/dates';
+import type { LendEntryType } from '@db/schema';
 
 interface SearchHit {
   id: string;
   module: 'track' | 'split' | 'lend' | 'person';
   title: string;
   subtitle?: string;
-  amountMinor?: number;
-  currency?: string;
   to: string;
+}
+
+function lendEntryLabel(type: LendEntryType): string {
+  switch (type) {
+    case 'lent': return 'Money lent';
+    case 'borrowed': return 'Money borrowed';
+    case 'repayment_received': return 'Repayment received';
+    case 'repayment_given': return 'Repayment made';
+    case 'adjustment': return 'Balance adjustment';
+  }
 }
 
 export function SearchPage() {
@@ -39,139 +43,100 @@ export function SearchPage() {
     return { track, expenses, groups, people, lendEntries, ledgers };
   }, []);
 
-  const results: SearchHit[] = useMemo(() => {
+  const results = useMemo<SearchHit[]>(() => {
     if (!all || !q.trim()) return [];
-    const needle = q.trim().toLowerCase();
+    const needle = q.trim().toLocaleLowerCase();
     const hits: SearchHit[] = [];
+    const visibleGroups = new Map(
+      all.groups.filter((group) => !group.deletedAt).map((group) => [group.id, group]),
+    );
 
-    for (const p of all.people) {
-      if (p.deletedAt) continue;
-      if (p.name.toLowerCase().includes(needle)) {
+    for (const person of all.people) {
+      if (person.deletedAt) continue;
+      const nameMatches = person.name.toLocaleLowerCase().includes(needle);
+      const noteMatches = person.note?.toLocaleLowerCase().includes(needle) ?? false;
+      if (nameMatches || noteMatches) {
         hits.push({
-          id: p.id,
+          id: person.id,
           module: 'person',
-          title: p.name + (p.isSelf ? ' (you)' : ''),
-          to: `/settings/people`,
-        });
-      }
-      if (p.note && p.note.toLowerCase().includes(needle)) {
-        hits.push({
-          id: p.id,
-          module: 'person',
-          title: p.name,
-          subtitle: p.note,
-          to: `/settings/people`,
+          title: person.name + (person.isSelf ? ' (you)' : ''),
+          subtitle: noteMatches && person.note ? person.note : 'Person',
+          to: '/settings/people',
         });
       }
     }
-    for (const t of all.track) {
-      if (t.deletedAt) continue;
-      if (t.title.toLowerCase().includes(needle)) {
-        hits.push({
-          id: t.id,
-          module: 'track',
-          title: t.title,
-          subtitle: `Track · ${formatHumanDate(t.date)}`,
-          amountMinor: t.amountMinor,
-          currency: t.currency,
-          to: `/track/transaction/${t.id}`,
-        });
-      }
+
+    for (const transaction of all.track) {
+      if (transaction.deletedAt || !transaction.title.toLocaleLowerCase().includes(needle)) continue;
+      hits.push({
+        id: transaction.id,
+        module: 'track',
+        title: transaction.title,
+        subtitle: `Track · ${formatHumanDate(transaction.date)}`,
+        to: `/track/transaction/${transaction.id}`,
+      });
     }
-    for (const g of all.groups) {
-      if (g.deletedAt) continue;
-      if (g.name.toLowerCase().includes(needle)) {
-        hits.push({
-          id: g.id,
-          module: 'split',
-          title: g.name,
-          subtitle: 'Group',
-          to: `/split/group/${g.id}`,
-        });
-      }
+
+    for (const group of visibleGroups.values()) {
+      if (!group.name.toLocaleLowerCase().includes(needle)) continue;
+      hits.push({ id: group.id, module: 'split', title: group.name, subtitle: group.archived ? 'Archived trip' : 'Trip', to: `/split/group/${group.id}` });
     }
-    for (const e of all.expenses) {
-      if (e.deletedAt) continue;
-      if (e.title.toLowerCase().includes(needle)) {
-        const g = all.groups.find((x) => x.id === e.groupId);
-        hits.push({
-          id: e.id,
-          module: 'split',
-          title: e.title,
-          subtitle: g ? `Split · ${g.name} · ${formatHumanDate(e.date)}` : 'Split',
-          amountMinor: e.amountMinor,
-          currency: e.currency,
-          to: `/split/group/${e.groupId}`,
-        });
-      }
+
+    for (const expense of all.expenses) {
+      if (expense.deletedAt || !expense.title.toLocaleLowerCase().includes(needle)) continue;
+      const group = visibleGroups.get(expense.groupId);
+      if (!group) continue;
+      hits.push({
+        id: expense.id,
+        module: 'split',
+        title: expense.title,
+        subtitle: `Split · ${group.name} · ${formatHumanDate(expense.date)}`,
+        to: `/split/group/${expense.groupId}`,
+      });
     }
+
     for (const entry of all.lendEntries) {
       if (entry.deletedAt) continue;
-      const l = all.ledgers.find((x) => x.id === entry.ledgerId);
-      if (!l) continue;
-      const person = all.people.find((p) => p.id === l.personId);
-      const note = entry.note ?? '';
-      if (note.toLowerCase().includes(needle) || (person?.name.toLowerCase().includes(needle) ?? false)) {
-        hits.push({
-          id: entry.id,
-          module: 'lend',
-          title: note || `${entry.type} · ${person?.name ?? ''}`,
-          subtitle: `Lend · ${person?.name ?? ''} · ${formatHumanDate(entry.date)}`,
-          to: `/lend/person/${l.personId}`,
-        });
-      }
+      const ledger = all.ledgers.find((item) => item.id === entry.ledgerId && !item.deletedAt);
+      if (!ledger) continue;
+      const person = all.people.find((item) => item.id === ledger.personId && !item.deletedAt);
+      if (!person) continue;
+      const note = entry.note?.trim() ?? '';
+      if (!note.toLocaleLowerCase().includes(needle) && !person.name.toLocaleLowerCase().includes(needle)) continue;
+      hits.push({
+        id: entry.id,
+        module: 'lend',
+        title: note || lendEntryLabel(entry.type),
+        subtitle: `Lend · ${person.name} · ${formatHumanDate(entry.date)}`,
+        to: `/lend/person/${person.id}`,
+      });
     }
+
     return hits.slice(0, 100);
   }, [all, q]);
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Search</h1>
-      <Input
-        autoFocus
-        placeholder="Search transactions, groups, people, notes…"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        aria-label="Search"
-      />
+      <Input autoFocus placeholder="Search transactions, trips, people, notes…" value={q} onChange={(event) => setQ(event.target.value)} aria-label="Search" />
       {!q.trim() ? (
-        <Card>
-          <EmptyState
-            title="Type to search"
-            description="Search across Track, Split, Lend, and People."
-            icon={<SearchIcon size={32} />}
-          />
-        </Card>
+        <Card><EmptyState title="Type to search" description="Search across Track, Split, Lend, and People." icon={<SearchIcon size={32} />} /></Card>
       ) : all === undefined ? (
         <Spinner />
       ) : results.length === 0 ? (
-        <Card>
-          <EmptyState title="No results" description={`Nothing matched "${q}"`} />
-        </Card>
+        <Card><EmptyState title="No results" description={`Nothing matched "${q}"`} /></Card>
       ) : (
         <Card padded={false}>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {results.map((r) => (
-              <li key={`${r.module}-${r.id}`}>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: r.to })}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                >
-                  <div className="text-slate-500">
-                    {r.module === 'track' ? (
-                      <Receipt size={18} />
-                    ) : r.module === 'split' ? (
-                      <Users size={18} />
-                    ) : r.module === 'lend' ? (
-                      <HandCoins size={18} />
-                    ) : (
-                      <UserCircle size={18} />
-                    )}
+            {results.map((result) => (
+              <li key={`${result.module}-${result.id}`}>
+                <button type="button" onClick={() => navigate({ to: result.to })} className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <div className="shrink-0 text-slate-500">
+                    {result.module === 'track' ? <Receipt size={18} /> : result.module === 'split' ? <Users size={18} /> : result.module === 'lend' ? <HandCoins size={18} /> : <UserCircle size={18} />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{r.title}</p>
-                    {r.subtitle && <p className="truncate text-xs text-slate-500">{r.subtitle}</p>}
+                    <p className="truncate text-sm font-medium">{result.title}</p>
+                    {result.subtitle && <p className="truncate text-xs text-slate-500">{result.subtitle}</p>}
                   </div>
                 </button>
               </li>
