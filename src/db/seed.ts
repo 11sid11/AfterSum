@@ -14,11 +14,7 @@
 import { getDB } from './database';
 import { newId, prefixedId } from '@shared/ids';
 import { nowISO } from '@shared/dates';
-import type {
-  AppSettings,
-  Person,
-  TrackCategory,
-} from './schema';
+import type { AppSettings, Person, TrackCategory } from './schema';
 
 export const SELF_PERSON_ID = 'self';
 
@@ -37,10 +33,7 @@ const DEFAULT_INCOME_CATEGORIES: Array<{ name: string; icon: string }> = [
   { name: 'Income', icon: 'trending-up' },
 ];
 
-/**
- * Ensure the database is in a usable first-launch state.
- * Idempotent: safe to call on every boot.
- */
+/** Ensure the database is in a usable first-launch state. */
 export async function ensureFirstLaunch(): Promise<void> {
   const db = getDB();
 
@@ -58,7 +51,6 @@ export async function ensureFirstLaunch(): Promise<void> {
     defaultCurrency: 'INR',
     theme: 'system',
     hideAmounts: false,
-    googleSyncEnabled: false,
     onboardingComplete: true,
   };
 
@@ -72,27 +64,27 @@ export async function ensureFirstLaunch(): Promise<void> {
   };
 
   const categories: TrackCategory[] = [
-    ...DEFAULT_EXPENSE_CATEGORIES.map((c, i) => ({
+    ...DEFAULT_EXPENSE_CATEGORIES.map((category, index) => ({
       id: prefixedId('cat'),
-      name: c.name,
+      name: category.name,
       type: 'expense' as const,
-      icon: c.icon,
+      icon: category.icon,
       archived: false,
       createdAt: now,
       updatedAt: now,
       revision: newRevision,
-      sortOrder: i,
+      sortOrder: index,
     })),
-    ...DEFAULT_INCOME_CATEGORIES.map((c, i) => ({
+    ...DEFAULT_INCOME_CATEGORIES.map((category, index) => ({
       id: prefixedId('cat'),
-      name: c.name,
+      name: category.name,
       type: 'income' as const,
-      icon: c.icon,
+      icon: category.icon,
       archived: false,
       createdAt: now,
       updatedAt: now,
       revision: newRevision,
-      sortOrder: 100 + i,
+      sortOrder: 100 + index,
     })),
   ];
 
@@ -103,5 +95,4 @@ export async function ensureFirstLaunch(): Promise<void> {
   });
 }
 
-/** Create a new id (re-exported here for convenience). */
 export { newId, prefixedId };

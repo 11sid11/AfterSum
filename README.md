@@ -1,50 +1,46 @@
-# Finance Utility
+# AfterSum
 
 An offline-first installable finance PWA with four independent sections:
 **Track** (personal spending), **Split** (trip/group expenses),
 **Lend** (personal lending ledger), plus an **Overview** that aggregates
 read-only.
 
-Built per the `work.md` specification.
-
 ## Stack
 
 - Vite + React + TypeScript (strict)
-- TanStack Router (file-based typed routes)
+- TanStack Router
 - TanStack Form
 - Dexie / IndexedDB (canonical store)
 - Tailwind CSS
 - vite-plugin-pwa (Workbox-backed service worker)
 - Zod (validation)
-- fflate (ZIP)
+- fflate (ZIP exports)
 - Vitest + React Testing Library
 - Playwright (offline E2E)
 
-## Module Isolation
+## Privacy and storage model
 
-`Track`, `Split`, and `Lend` are independent financial ledgers.
-They share only `Person` records (identity) and core utilities.
-Balances never flow between modules automatically. Overview is
-read-only.
+AfterSum does not require an account or backend. Financial records stay in the
+browser's IndexedDB unless the user explicitly saves a portable backup or
+exports data.
 
-## Optional Google Sheets backup
+- IndexedDB is the canonical database.
+- A separate local IndexedDB keeps rotating recovery checkpoints.
+- Portable backups are complete JSON snapshots that can be saved/shared using
+  the device's normal file or share flow.
+- AfterSum does not connect to Google Drive, Google Sheets, Dropbox, or another
+  cloud provider directly.
+- CSV/ZIP exports are for inspection and analysis; portable backups are the
+  restore format.
 
-Google backup is deliberately secondary to the local database:
+This keeps hosting and infrastructure requirements close to zero while letting
+users choose their own storage provider.
 
-- IndexedDB remains the source of truth.
-- Backups are manual snapshots to a private Google Sheet created by AfterSum.
-- Restore is explicit and downloads a local safety JSON backup first.
-- OAuth uses the narrow `drive.file` scope.
-- Short-lived authorization stays in browser memory only.
-- No OAuth client secret or refresh token is used by the PWA.
+## Module isolation
 
-For local development, set the public OAuth web client ID in `.env.local`:
-
-```bash
-VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-```
-
-The Google Cloud project must have the Google Drive API and Google Sheets API enabled, and the web OAuth client must authorize the origin serving the app.
+`Track`, `Split`, and `Lend` are independent financial ledgers. They share only
+`Person` records (identity) and core utilities. Balances never flow between
+modules automatically. Overview is read-only.
 
 ## Scripts
 
@@ -64,16 +60,16 @@ pnpm lint         # eslint
 ```
 src/
   app/         router, providers, layout
-  routes/      TanStack file routes
+  backup/      local recovery + portable backup helpers
+  routes/      app screens
   db/          Dexie schema, migrations, transaction helper
   shared/      people, money, dates, ids, validation, settings
   modules/     track/, split/, lend/
   overview/    read-only projections, queries, adapters
-  sync/        google auth/drive/sheets, queue, status
+  sync/        legacy local change metadata kept for repository compatibility
   export/      csv, json, zip
   components/  ui primitives
   tests/       unit + e2e
 ```
 
-See `work.md` for the full specification and `docs/ARCHITECTURE.md`
-for module boundaries.
+See `work.md` for the original implementation specification.

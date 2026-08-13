@@ -121,7 +121,7 @@ export function SettingsPage() {
                 <Database size={18} className="text-slate-500" />
                 <div>
                   <p className="text-sm font-medium">Data &amp; Backup</p>
-                  <p className="text-xs text-slate-500">Local storage, JSON and CSV</p>
+                  <p className="text-xs text-slate-500">Recovery, portable backup and exports</p>
                 </div>
               </div>
               <ChevronRight size={16} className="text-slate-400" />

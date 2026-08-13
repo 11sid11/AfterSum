@@ -12,7 +12,6 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, 'createdAt' | 'updatedAt' | 're
   defaultCurrency: 'INR',
   theme: 'system',
   hideAmounts: false,
-  googleSyncEnabled: false,
   onboardingComplete: false,
 };
 
@@ -83,28 +82,8 @@ export const settingsRepository = {
     return settingsRepository.update({ onboardingComplete: complete });
   },
 
-  /** Cloud account metadata is device configuration, not a financial mutation. */
-  async setGoogleSyncBinding(input: {
-    accountId: string;
-    email?: string;
-    spreadsheetId?: string;
-  }): Promise<AppSettings> {
-    return writeWithoutDirty({
-      googleSyncEnabled: true,
-      googleAccountId: input.accountId,
-      googleAccountEmail: input.email,
-      googleSpreadsheetId: input.spreadsheetId,
-      googleFolderId: undefined,
-    });
-  },
-
-  async clearGoogleSyncBinding(): Promise<AppSettings> {
-    return writeWithoutDirty({
-      googleSyncEnabled: false,
-      googleAccountId: undefined,
-      googleAccountEmail: undefined,
-      googleSpreadsheetId: undefined,
-      googleFolderId: undefined,
-    });
+  /** Device metadata only; recording a backup does not change financial data. */
+  async setLastPortableBackupAt(timestamp: string): Promise<AppSettings> {
+    return writeWithoutDirty({ lastPortableBackupAt: timestamp });
   },
 };

@@ -1,15 +1,14 @@
 /**
  * App-level providers.
  *
- * Wraps the entire app with the global providers. Keep
- * this file small — anything heavy should live in its own
- * context module under `src/shared/`.
+ * Wraps the entire app with the global providers. Keep this file small —
+ * anything heavy should live in its own context module under `src/shared/`.
  */
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { ensureFirstLaunch } from '@db/seed';
-import { useEffect, useState } from 'react';
 import { ToastProvider } from '@components/ui';
+import { ensureDailyRecoverySnapshot } from '@/backup/recovery';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -21,15 +20,27 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   useEffect(() => {
     let cancelled = false;
-    ensureFirstLaunch()
-      .then(() => {
-        if (!cancelled) setReady(true);
-      })
-      .catch((err: unknown) => {
+
+    const initialize = async () => {
+      try {
+        await ensureFirstLaunch();
+        if (cancelled) return;
+
+        setReady(true);
+
+        // Recovery is best-effort and deliberately off the startup critical
+        // path so a large local history never delays opening the PWA.
+        void ensureDailyRecoverySnapshot().catch((recoveryError) => {
+          console.warn('Could not create local recovery checkpoint.', recoveryError);
+        });
+      } catch (err: unknown) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
         }
-      });
+      }
+    };
+
+    void initialize();
     return () => {
       cancelled = true;
     };
