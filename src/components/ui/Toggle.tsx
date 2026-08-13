@@ -22,8 +22,20 @@ export function Toggle({ checked, onChange, label, disabled, id }: ToggleProps) 
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      <input id={id} type="checkbox" className="peer sr-only" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
-      <span className={clsx('inline-block h-5.5 w-5.5 h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform duration-150', checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+      <input
+        id={id}
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        className={clsx(
+          'inline-block h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform duration-150',
+          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
+        )}
+      />
       {label && <span className="sr-only">{label}</span>}
     </label>
   );
