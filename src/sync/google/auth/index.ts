@@ -60,7 +60,6 @@ export interface GoogleApiClient {
       create(input: Record<string, unknown>): Promise<GoogleApiResponse<unknown>>;
       values: {
         get(input: Record<string, unknown>): Promise<GoogleApiResponse<unknown>>;
-        clear(input: Record<string, unknown>): Promise<GoogleApiResponse<unknown>>;
         update(input: Record<string, unknown>): Promise<GoogleApiResponse<unknown>>;
       };
     };
@@ -112,7 +111,7 @@ export function getGoogleAuthState(): GoogleAuthState {
 }
 
 export function clearGoogleAuthState(): void {
-  window.gapi?.client?.setToken(null);
+  window.gapi?.client?.setToken('');
   state = { authorized: false };
 }
 
