@@ -27,6 +27,25 @@ They share only `Person` records (identity) and core utilities.
 Balances never flow between modules automatically. Overview is
 read-only.
 
+## Optional Google Sheets backup
+
+Google backup is deliberately secondary to the local database:
+
+- IndexedDB remains the source of truth.
+- Backups are manual snapshots to a private Google Sheet created by AfterSum.
+- Restore is explicit and downloads a local safety JSON backup first.
+- OAuth uses the narrow `drive.file` scope.
+- Short-lived authorization stays in browser memory only.
+- No OAuth client secret or refresh token is used by the PWA.
+
+For local development, set the public OAuth web client ID in `.env.local`:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+```
+
+The Google Cloud project must have the Google Drive API and Google Sheets API enabled, and the web OAuth client must authorize the origin serving the app.
+
 ## Scripts
 
 ```bash

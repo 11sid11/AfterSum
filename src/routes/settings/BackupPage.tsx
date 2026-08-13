@@ -1,8 +1,8 @@
 /**
  * Data & Backup page.
  *
- * Only working local/export/restore capabilities are presented.
- * Cloud controls stay hidden until the integration is functional.
+ * IndexedDB is always the canonical database. Local exports and optional
+ * Google Sheets backup are explicit user actions.
  */
 
 import { useEffect, useState } from 'react';
@@ -13,7 +13,6 @@ import {
   validateBackup,
   restoreBackup,
   summarizeBackup,
-  type Backup,
 } from '@/export/json/backup';
 import { buildFullZip } from '@/export/zip/builder';
 import { csvOfTrackTransactions } from '@/export/csv/serializer';
@@ -22,6 +21,7 @@ import { toMonthKey } from '@shared/dates';
 import { persistBrowserStorage, isPersisted } from '@shared/storage';
 import { markDirty } from '@sync/status';
 import { useAppSettings } from '@shared/settings/useSettings';
+import { GoogleSheetsBackupCard } from './GoogleSheetsBackupCard';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -53,7 +53,9 @@ export function BackupPage() {
       downloadBlob(blob, `aftersum-backup-${stamp}.json`);
       toast.show('JSON backup downloaded');
     } catch (e) {
-      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), { variant: 'error' });
+      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), {
+        variant: 'error',
+      });
     } finally {
       setBusy(null);
     }
@@ -68,7 +70,9 @@ export function BackupPage() {
       const summary = summarizeBackup(valid);
 
       const safety = await exportBackup();
-      const safetyBlob = new Blob([JSON.stringify(safety, null, 2)], { type: 'application/json' });
+      const safetyBlob = new Blob([JSON.stringify(safety, null, 2)], {
+        type: 'application/json',
+      });
       const stamp = new Date().toISOString().slice(0, 10);
       downloadBlob(safetyBlob, `aftersum-pre-restore-${stamp}.json`);
 
@@ -78,7 +82,9 @@ export function BackupPage() {
         `Restored ${summary.people} people, ${summary.trackTransactions} Track, ${summary.splitExpenses} Split, ${summary.lendEntries} Lend entries. Safety backup downloaded.`,
       );
     } catch (e) {
-      toast.show('Restore failed: ' + (e instanceof Error ? e.message : String(e)), { variant: 'error' });
+      toast.show('Restore failed: ' + (e instanceof Error ? e.message : String(e)), {
+        variant: 'error',
+      });
     } finally {
       setBusy(null);
     }
@@ -92,7 +98,9 @@ export function BackupPage() {
       downloadBlob(blob, `aftersum-export-${stamp}.zip`);
       toast.show('CSV package downloaded');
     } catch (e) {
-      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), { variant: 'error' });
+      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), {
+        variant: 'error',
+      });
     } finally {
       setBusy(null);
     }
@@ -108,12 +116,18 @@ export function BackupPage() {
         db.trackCategories.toArray(),
       ]);
       const filtered = transactions.filter((t) => !t.deletedAt && t.date.startsWith(month));
-      const csv = csvOfTrackTransactions(filtered, categories, settings?.defaultCurrency ?? 'INR');
+      const csv = csvOfTrackTransactions(
+        filtered,
+        categories,
+        settings?.defaultCurrency ?? 'INR',
+      );
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
       downloadBlob(blob, `track-${month}.csv`);
       toast.show(`Exported ${filtered.length} transactions for ${month}`);
     } catch (e) {
-      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), { variant: 'error' });
+      toast.show('Export failed: ' + (e instanceof Error ? e.message : String(e)), {
+        variant: 'error',
+      });
     } finally {
       setBusy(null);
     }
@@ -123,7 +137,9 @@ export function BackupPage() {
     <div className="space-y-4">
       <header>
         <h1 className="text-lg font-semibold">Data &amp; Backup</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Your data is stored on this device unless you export it.</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Your data stays on this device unless you explicitly export or back it up.
+        </p>
       </header>
 
       <Card>
@@ -132,7 +148,10 @@ export function BackupPage() {
           <Database size={16} className="mr-1 inline" /> Local database available
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          Persistent storage: <strong>{persisted === null ? 'checking…' : persisted ? 'Enabled' : 'Not guaranteed'}</strong>
+          Persistent storage:{' '}
+          <strong>
+            {persisted === null ? 'checking…' : persisted ? 'Enabled' : 'Not guaranteed'}
+          </strong>
         </p>
         {!persisted && (
           <div className="mt-3">
@@ -155,6 +174,8 @@ export function BackupPage() {
         )}
       </Card>
 
+      <GoogleSheetsBackupCard />
+
       <Card>
         <h2 className="section-title mb-2">Back up or inspect your data</h2>
         <div className="space-y-2">
@@ -171,7 +192,7 @@ export function BackupPage() {
       </Card>
 
       <Card>
-        <h2 className="section-title mb-2">Restore</h2>
+        <h2 className="section-title mb-2">Restore local backup</h2>
         <p className="text-xs text-slate-500">
           Restoring replaces local data. AfterSum downloads a safety backup of the current state first.
         </p>
@@ -194,5 +215,3 @@ export function BackupPage() {
     </div>
   );
 }
-
-void ({} as Backup);
