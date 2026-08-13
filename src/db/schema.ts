@@ -121,6 +121,15 @@ export interface SplitGroupMember extends BaseEntity {
 
 export type SplitMethod = 'equal' | 'exact' | 'percentage' | 'shares';
 
+/** Lightweight trip-expense categories, matching the focused Trip Split workflow. */
+export type SplitExpenseCategory =
+  | 'food'
+  | 'stay'
+  | 'travel'
+  | 'fun'
+  | 'shopping'
+  | 'other';
+
 export interface SplitExpense extends BaseEntity {
   groupId: string;
   title: string;
@@ -129,6 +138,8 @@ export interface SplitExpense extends BaseEntity {
   /** YYYY-MM-DD */
   date: string;
   splitMethod: SplitMethod;
+  /** Optional for backward compatibility with expenses created before categories existed. */
+  category?: SplitExpenseCategory;
   note?: string;
 }
 
