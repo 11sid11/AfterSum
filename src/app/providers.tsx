@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { ensureFirstLaunch } from '@db/seed';
 import { ToastProvider } from '@components/ui';
 import { ensureDailyRecoverySnapshot } from '@/backup/recovery';
+import { ThemeSync } from '@shared/settings/ThemeSync';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -68,5 +69,10 @@ export function AppProviders({ children }: AppProvidersProps) {
     );
   }
 
-  return <ToastProvider>{children}</ToastProvider>;
+  return (
+    <ToastProvider>
+      <ThemeSync />
+      {children}
+    </ToastProvider>
+  );
 }

@@ -34,19 +34,26 @@ export function SettingsPage() {
   if (!settings) return <Spinner />;
   const hasFinancialData = !!stats && stats.track + stats.groups + stats.lendLedgers + stats.budgets > 0;
 
+  const setTheme = (mode: 'system' | 'light' | 'dark') => {
+    void settingsRepository.setTheme(mode).catch((error) => {
+      toast.show(error instanceof Error ? error.message : 'Could not change theme', { variant: 'error' });
+    });
+  };
+
   const themeButton = (mode: 'system' | 'light' | 'dark', icon: React.ReactNode, label: string) => (
     <button
       type="button"
-      onClick={() => settingsRepository.setTheme(mode)}
+      onClick={() => setTheme(mode)}
       className={clsx(
-        'flex min-h-11 flex-col items-center gap-1 rounded-xl border px-3 py-2 text-xs',
+        'flex min-h-11 flex-col items-center gap-1 rounded-xl border px-3 py-2 text-xs transition-colors',
         settings.theme === mode
           ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-200'
           : 'border-slate-200 hover:border-slate-300 dark:border-slate-700',
       )}
       aria-pressed={settings.theme === mode}
     >
-      {icon}{label}
+      {icon}
+      {label}
     </button>
   );
 
@@ -69,31 +76,70 @@ export function SettingsPage() {
             <p className="text-sm font-semibold">Privacy mode</p>
             <p className="text-xs text-slate-500">Hide monetary amounts across the app.</p>
           </div>
-          <Toggle checked={settings.hideAmounts} onChange={(value) => { void settingsRepository.setHideAmounts(value); toast.show(value ? 'Privacy mode on' : 'Privacy mode off'); }} id="privacy-toggle" />
-          <span className="sr-only">{settings.hideAmounts ? <EyeOff size={18} /> : <Eye size={18} />}</span>
+          <Toggle
+            checked={settings.hideAmounts}
+            onChange={(value) => {
+              void settingsRepository.setHideAmounts(value);
+              toast.show(value ? 'Privacy mode on' : 'Privacy mode off');
+            }}
+            id="privacy-toggle"
+          />
+          <span className="sr-only">
+            {settings.hideAmounts ? <EyeOff size={18} /> : <Eye size={18} />}
+          </span>
         </div>
       </Card>
 
       <Card>
         <h2 className="section-title mb-2">Main currency</h2>
         {hasFinancialData ? (
-          <div><p className="text-sm font-semibold">{settings.defaultCurrency}</p><p className="mt-1 text-xs text-slate-500">Locked after financial data is recorded so historical amounts are never relabelled as another currency.</p></div>
+          <div>
+            <p className="text-sm font-semibold">{settings.defaultCurrency}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Locked after financial data is recorded so historical amounts are never relabelled as another currency.
+            </p>
+          </div>
         ) : (
-          <CurrencyPicker value={settings.defaultCurrency} onChange={(currency) => { void settingsRepository.setDefaultCurrency(currency).catch((err) => toast.show(err instanceof Error ? err.message : 'Could not change currency', { variant: 'error' })); }} />
+          <CurrencyPicker
+            value={settings.defaultCurrency}
+            onChange={(currency) => {
+              void settingsRepository.setDefaultCurrency(currency).catch((error) =>
+                toast.show(error instanceof Error ? error.message : 'Could not change currency', { variant: 'error' }),
+              );
+            }}
+          />
         )}
       </Card>
 
       <Card padded={false}>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           <li>
-            <Link to="/settings/people" className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <div className="flex min-w-0 items-center gap-3"><Users size={18} className="shrink-0 text-slate-500" /><div className="min-w-0"><p className="text-sm font-medium">People</p><p className="text-xs text-slate-500">{stats?.people ?? '…'} people</p></div></div>
+            <Link
+              to="/settings/people"
+              className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Users size={18} className="shrink-0 text-slate-500" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">People</p>
+                  <p className="text-xs text-slate-500">{stats?.people ?? '…'} people</p>
+                </div>
+              </div>
               <ChevronRight size={16} className="shrink-0 text-slate-400" />
             </Link>
           </li>
           <li>
-            <Link to="/settings/backup" className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <div className="flex min-w-0 items-center gap-3"><Database size={18} className="shrink-0 text-slate-500" /><div className="min-w-0"><p className="text-sm font-medium">Data &amp; Backup</p><p className="truncate text-xs text-slate-500">Recovery, portable backup and exports</p></div></div>
+            <Link
+              to="/settings/backup"
+              className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Database size={18} className="shrink-0 text-slate-500" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Data &amp; Storage</p>
+                  <p className="truncate text-xs text-slate-500">Persistence, usage, recovery and exports</p>
+                </div>
+              </div>
               <ChevronRight size={16} className="shrink-0 text-slate-400" />
             </Link>
           </li>
