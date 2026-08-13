@@ -144,6 +144,25 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
       setError('Group name is required');
       return;
     }
+
+    // Treat a name still sitting in the "Add someone new" field as
+    // intentional input. The user should not have to tap Add before
+    // tapping Create group.
+    const membersToAttach = new Set(selectedMemberIds);
+    const peopleToCreate = [...pendingPeople];
+    const inlineName = newPersonName.trim();
+    if (inlineName) {
+      const normalized = inlineName.toLocaleLowerCase();
+      const existing = selectablePeople.find(
+        (person) => person.name.trim().toLocaleLowerCase() === normalized,
+      );
+      if (existing) {
+        membersToAttach.add(existing.id);
+      } else if (!peopleToCreate.some((personName) => personName.toLocaleLowerCase() === normalized)) {
+        peopleToCreate.push(inlineName);
+      }
+    }
+
     setSubmitting(true);
     setError(undefined);
     try {
@@ -156,11 +175,11 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
       // The current user is always part of a Split group.
       await splitGroupMemberRepository.getOrCreate(group.id, selfPersonId);
 
-      for (const personId of selectedMemberIds) {
+      for (const personId of membersToAttach) {
         await splitGroupMemberRepository.getOrCreate(group.id, personId);
       }
 
-      for (const personName of pendingPeople) {
+      for (const personName of peopleToCreate) {
         const person = await personRepository.create({ name: personName });
         await splitGroupMemberRepository.getOrCreate(group.id, person.id);
       }
@@ -212,7 +231,9 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
         <section className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
           <div>
             <h2 className="text-sm font-semibold">Who's in this group?</h2>
-            <p className="mt-1 text-xs text-slate-500">You're included automatically. Select existing people or add someone new.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              You're included automatically. Select existing people or add someone new.
+            </p>
           </div>
 
           {people === undefined ? (
@@ -263,7 +284,9 @@ function CreateGroupModal({ defaultCurrency, selfPersonId, onClose, onCreated }:
                   {personName}
                   <button
                     type="button"
-                    onClick={() => setPendingPeople((current) => current.filter((name) => name !== personName))}
+                    onClick={() =>
+                      setPendingPeople((current) => current.filter((name) => name !== personName))
+                    }
                     disabled={submitting}
                     className="rounded-full p-0.5 text-slate-500 hover:text-slate-900 dark:hover:text-white"
                     aria-label={`Remove ${personName}`}
