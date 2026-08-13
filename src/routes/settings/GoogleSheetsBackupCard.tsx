@@ -262,6 +262,9 @@ export function GoogleSheetsBackupCard() {
           <p className="mt-1 text-xs text-slate-500">
             Optional manual backup. IndexedDB stays the source of truth; restore is always explicit.
           </p>
+          <p className="mt-1 text-xs text-slate-500">
+            The backup uses your Google Drive permissions and is not end-to-end encrypted by AfterSum. Keep the Sheet private.
+          </p>
         </div>
       </div>
 
@@ -323,7 +326,7 @@ export function GoogleSheetsBackupCard() {
             <Button
               variant="secondary"
               onClick={() => void restoreFromGoogle()}
-              disabled={!!busy || !authorizedForBoundAccount || !cloud}
+              disabled={!!busy || !authorizedForBoundAccount || !cloud?.exportedAt}
             >
               {busy === 'restore-cloud' ? <Spinner /> : <CloudDownload size={16} />} Restore from Google
             </Button>
