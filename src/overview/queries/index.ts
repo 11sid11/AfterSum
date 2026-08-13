@@ -13,6 +13,7 @@ import {
   splitSettlementToActivity,
   lendToActivity,
 } from '../adapters';
+import { calculateSplitPersonalShareForMonth } from '../projections/calculations';
 import type { ActivityItem, OverviewSummary, PersonExposure } from '../projections/types';
 import type { CurrencyCode } from '@shared/money';
 
@@ -42,16 +43,26 @@ export function useOverviewSummary(month: string = toMonthKey()): OverviewSummar
 
     const groups = (await db.splitGroups.toArray()).filter((g) => !g.deletedAt);
     const expenses = (await db.splitExpenses.toArray()).filter((e) => !e.deletedAt);
-    const payers = await db.splitPayers.toArray();
-    const shares = await db.splitShares.toArray();
-    const settlements = await db.splitSettlements.toArray();
+    const payers = (await db.splitPayers.toArray()).filter((p) => !p.deletedAt);
+    const shares = (await db.splitShares.toArray()).filter((s) => !s.deletedAt);
+    const settlements = (await db.splitSettlements.toArray()).filter((s) => !s.deletedAt);
+    const splitShareMinor = calculateSplitPersonalShareForMonth({
+      month,
+      currency,
+      selfPersonId: SELF_PERSON_ID,
+      groups,
+      expenses,
+      shares,
+    });
+
     let youAreOwedSplit = 0;
     let youOweSplit = 0;
     for (const g of groups) {
       if (g.currency !== currency) continue;
       const gExp = expenses.filter((e) => e.groupId === g.id);
-      const gPay = payers.filter((p) => gExp.some((e) => e.id === p.expenseId));
-      const gSha = shares.filter((s) => gExp.some((e) => e.id === s.expenseId));
+      const expenseIds = new Set(gExp.map((e) => e.id));
+      const gPay = payers.filter((p) => expenseIds.has(p.expenseId));
+      const gSha = shares.filter((s) => expenseIds.has(s.expenseId));
       const gSet = settlements.filter((s) => s.groupId === g.id);
       const myPaid = gPay.filter((p) => p.personId === SELF_PERSON_ID).reduce((a, b) => a + b.amountMinor, 0);
       const myShare = gSha.filter((s) => s.personId === SELF_PERSON_ID).reduce((a, b) => a + b.amountMinor, 0);
@@ -72,8 +83,15 @@ export function useOverviewSummary(month: string = toMonthKey()): OverviewSummar
       if (sum > 0) youWillReceiveLend += sum;
       else youOweLend += -sum;
     }
+
     return {
       month,
+      personalSpending: {
+        trackMinor: spentMinor,
+        splitShareMinor,
+        totalMinor: spentMinor + splitShareMinor,
+        currency,
+      },
       track: { spentMinor, incomeMinor, currency, budgetMinor, budgetRemainingMinor },
       split: { youAreOwedMinor: youAreOwedSplit, youOweMinor: youOweSplit, currency },
       lend: { youWillReceiveMinor: youWillReceiveLend, youOweMinor: youOweLend, currency },
@@ -84,20 +102,18 @@ export function useOverviewSummary(month: string = toMonthKey()): OverviewSummar
 export function useGlobalActivity(limit = 20): ActivityItem[] | undefined {
   return useLiveQuery(async () => {
     const db = getDB();
-    const [trackAll, groups, expenses, _payers, _shares, settlements, ledgers, lendEntries, people] = await Promise.all([
+    const [trackAll, groups, expenses, settlements, ledgers, lendEntries, people] = await Promise.all([
       db.trackTransactions.toArray(),
       db.splitGroups.toArray(),
       db.splitExpenses.toArray(),
-      db.splitPayers.toArray(),
-      db.splitShares.toArray(),
       db.splitSettlements.toArray(),
       db.lendLedgers.toArray(),
       db.lendEntries.toArray(),
       db.people.toArray(),
     ]);
-    const groupMap = new Map(groups.map((g) => [g.id, g]));
-    const peopleMap = new Map(people.map((p) => [p.id, p]));
-    const ledgerMap = new Map(ledgers.map((l) => [l.id, l]));
+    const groupMap = new Map(groups.filter((g) => !g.deletedAt).map((g) => [g.id, g]));
+    const peopleMap = new Map(people.filter((p) => !p.deletedAt).map((p) => [p.id, p]));
+    const ledgerMap = new Map(ledgers.filter((l) => !l.deletedAt).map((l) => [l.id, l]));
 
     const items: ActivityItem[] = [];
     for (const t of trackAll) {
@@ -111,6 +127,7 @@ export function useGlobalActivity(limit = 20): ActivityItem[] | undefined {
       items.push(splitToActivity(e, g.name, g.currency));
     }
     for (const s of settlements) {
+      if (s.deletedAt) continue;
       const g = groupMap.get(s.groupId);
       if (!g) continue;
       items.push(splitSettlementToActivity(s, g.name));
@@ -150,18 +167,20 @@ export function usePersonExposure(personId: string): PersonExposure | null | und
         currency: l.currency as CurrencyCode,
       });
     }
-    const members = (await db.splitGroupMembers.toArray()).filter((m) => m.personId === personId);
+
+    const members = (await db.splitGroupMembers.toArray()).filter((m) => !m.deletedAt && m.personId === personId);
     const groups = (await db.splitGroups.toArray()).filter((g) => !g.deletedAt);
     const expenses = (await db.splitExpenses.toArray()).filter((e) => !e.deletedAt);
-    const payers = await db.splitPayers.toArray();
-    const sShares = await db.splitShares.toArray();
-    const settlements = await db.splitSettlements.toArray();
+    const payers = (await db.splitPayers.toArray()).filter((p) => !p.deletedAt);
+    const sShares = (await db.splitShares.toArray()).filter((s) => !s.deletedAt);
+    const settlements = (await db.splitSettlements.toArray()).filter((s) => !s.deletedAt);
     for (const m of members) {
       const g = groups.find((x) => x.id === m.groupId);
       if (!g) continue;
       const gExp = expenses.filter((e) => e.groupId === g.id);
-      const gPay = payers.filter((p) => gExp.some((e) => e.id === p.expenseId));
-      const gSha = sShares.filter((s) => gExp.some((e) => e.id === s.expenseId));
+      const expenseIds = new Set(gExp.map((e) => e.id));
+      const gPay = payers.filter((p) => expenseIds.has(p.expenseId));
+      const gSha = sShares.filter((s) => expenseIds.has(s.expenseId));
       const gSet = settlements.filter((s) => s.groupId === g.id);
       const theirPaid = gPay.filter((p) => p.personId === personId).reduce((a, b) => a + b.amountMinor, 0);
       const theirShare = gSha.filter((s) => s.personId === personId).reduce((a, b) => a + b.amountMinor, 0);

@@ -10,6 +10,7 @@ import { getDB } from '@db/database';
 import { SELF_PERSON_ID } from '@db/seed';
 import { isInMonth } from '@shared/dates';
 import { settingsRepository } from '@shared/settings/repository';
+import { calculateSplitPersonalShareForMonth } from './calculations';
 import type {
   PersonExposure,
   OverviewSummary,
@@ -37,17 +38,26 @@ export async function getOverviewMonth(month: string): Promise<OverviewSummary> 
   // Split
   const groups = (await db.splitGroups.toArray()).filter((g) => !g.deletedAt);
   const expenses = (await db.splitExpenses.toArray()).filter((e) => !e.deletedAt);
-  const payers = await db.splitPayers.toArray();
-  const shares = await db.splitShares.toArray();
-  const settlements = await db.splitSettlements.toArray();
+  const payers = (await db.splitPayers.toArray()).filter((p) => !p.deletedAt);
+  const shares = (await db.splitShares.toArray()).filter((s) => !s.deletedAt);
+  const settlements = (await db.splitSettlements.toArray()).filter((s) => !s.deletedAt);
+  const splitShareMinor = calculateSplitPersonalShareForMonth({
+    month,
+    currency,
+    selfPersonId: SELF_PERSON_ID,
+    groups,
+    expenses,
+    shares,
+  });
 
   let youAreOwedSplit = 0;
   let youOweSplit = 0;
   for (const g of groups) {
     if (g.currency !== currency) continue;
     const gExpenses = expenses.filter((e) => e.groupId === g.id);
-    const gPayers = payers.filter((p) => gExpenses.some((e) => e.id === p.expenseId));
-    const gShares = shares.filter((s) => gExpenses.some((e) => e.id === s.expenseId));
+    const expenseIds = new Set(gExpenses.map((e) => e.id));
+    const gPayers = payers.filter((p) => expenseIds.has(p.expenseId));
+    const gShares = shares.filter((s) => expenseIds.has(s.expenseId));
     const gSettlements = settlements.filter((s) => s.groupId === g.id);
 
     const myPaid = gPayers.filter((p) => p.personId === SELF_PERSON_ID).reduce((a, b) => a + b.amountMinor, 0);
@@ -74,6 +84,12 @@ export async function getOverviewMonth(month: string): Promise<OverviewSummary> 
 
   return {
     month,
+    personalSpending: {
+      trackMinor: spentMinor,
+      splitShareMinor,
+      totalMinor: spentMinor + splitShareMinor,
+      currency,
+    },
     track: { spentMinor, incomeMinor, currency, budgetMinor, budgetRemainingMinor },
     split: { youAreOwedMinor: youAreOwedSplit, youOweMinor: youOweSplit, currency },
     lend: { youWillReceiveMinor: youWillReceiveLend, youOweMinor: youOweLend, currency },
@@ -127,27 +143,25 @@ export async function getPersonExposure(personId: string): Promise<PersonExposur
   }
 
   // Split groups containing this person
-  const members = (await db.splitGroupMembers.toArray()).filter((m) => m.personId === personId);
+  const members = (await db.splitGroupMembers.toArray()).filter((m) => !m.deletedAt && m.personId === personId);
   const groups = (await db.splitGroups.toArray()).filter((g) => !g.deletedAt);
   const expenses = (await db.splitExpenses.toArray()).filter((e) => !e.deletedAt);
-  const payers = await db.splitPayers.toArray();
-  const shares = await db.splitShares.toArray();
-  const settlements = await db.splitSettlements.toArray();
+  const payers = (await db.splitPayers.toArray()).filter((p) => !p.deletedAt);
+  const shares = (await db.splitShares.toArray()).filter((s) => !s.deletedAt);
+  const settlements = (await db.splitSettlements.toArray()).filter((s) => !s.deletedAt);
 
   for (const m of members) {
     const g = groups.find((x) => x.id === m.groupId);
     if (!g) continue;
     const gExpenses = expenses.filter((e) => e.groupId === g.id);
-    const gPayers = payers.filter((p) => gExpenses.some((e) => e.id === p.expenseId));
-    const gShares = shares.filter((s) => gExpenses.some((e) => e.id === s.expenseId));
+    const expenseIds = new Set(gExpenses.map((e) => e.id));
+    const gPayers = payers.filter((p) => expenseIds.has(p.expenseId));
+    const gShares = shares.filter((s) => expenseIds.has(s.expenseId));
     const gSettlements = settlements.filter((s) => s.groupId === g.id);
     const theirPaid = gPayers.filter((p) => p.personId === personId).reduce((a, b) => a + b.amountMinor, 0);
     const theirShare = gShares.filter((s) => s.personId === personId).reduce((a, b) => a + b.amountMinor, 0);
     const theirSent = gSettlements.filter((s) => s.fromPersonId === personId).reduce((a, b) => a + b.amountMinor, 0);
     const theirReceived = gSettlements.filter((s) => s.toPersonId === personId).reduce((a, b) => a + b.amountMinor, 0);
-    // Sign: positive = they should receive, negative = they owe.
-    // For the person exposure card, "balance" = payments - shares + sent - received
-    // from THEIR perspective. We want it from their POV.
     const theirBalance = theirPaid - theirShare + theirSent - theirReceived;
     contexts.push({
       module: 'split',

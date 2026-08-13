@@ -1,9 +1,9 @@
 /**
  * Overview dashboard component.
  *
- * Track is month-scoped; Split and Lend are outstanding
- * balances. Activity amounts are intentionally unsigned because
- * each module has different accounting sign semantics.
+ * Personal spending is a read-only projection of Track expenses plus the
+ * current user's Split shares for the selected month. Split and Lend
+ * outstanding balances remain independent.
  */
 
 import { Link } from '@tanstack/react-router';
@@ -29,36 +29,73 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
       </header>
 
       <section>
-        <p className="section-title mb-2">Track · {monthHeading(month)}</p>
-        <Card>
-          <Link to="/track" className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Receipt className="text-brand-600" size={20} />
-              <div>
-                <p className="text-sm font-semibold">Personal spending</p>
-                <p className="text-xs text-slate-500">This month</p>
+        <p className="section-title mb-2">Personal spending · {monthHeading(month)}</p>
+        <Card padded={false}>
+          <div className="px-4 py-4">
+            <p className="text-xs text-slate-500">Your economic spending this month</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">
+              <Money
+                value={{
+                  amountMinor: summary.personalSpending.totalMinor,
+                  currency: summary.personalSpending.currency,
+                }}
+                hide={hide}
+                emphasize
+              />
+            </p>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-800">
+            <Link
+              to="/track"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <Receipt className="text-brand-600" size={18} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Track</p>
+                <p className="text-xs text-slate-500">Expenses you logged directly</p>
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm">
-                Spent{' '}
-                <Money value={{ amountMinor: summary.track.spentMinor, currency: summary.track.currency }} hide={hide} emphasize />
-              </p>
-              {summary.track.budgetMinor !== undefined && (
-                <p className="text-xs text-slate-500">
-                  {summary.track.budgetRemainingMinor !== undefined && summary.track.budgetRemainingMinor < 0 ? 'Over by' : 'Left'}{' '}
+              <div className="text-right">
+                <p className="text-sm font-semibold tabular-nums">
                   <Money
-                    value={{
-                      amountMinor: Math.abs(summary.track.budgetRemainingMinor ?? 0),
-                      currency: summary.track.currency,
-                    }}
+                    value={{ amountMinor: summary.personalSpending.trackMinor, currency: summary.personalSpending.currency }}
                     hide={hide}
                   />
                 </p>
-              )}
-              <ChevronRight size={16} className="ml-auto text-slate-400" />
-            </div>
-          </Link>
+                {summary.track.budgetMinor !== undefined && (
+                  <p className="text-xs text-slate-500">
+                    Track budget {summary.track.budgetRemainingMinor !== undefined && summary.track.budgetRemainingMinor < 0 ? 'over by' : 'left'}{' '}
+                    <Money
+                      value={{
+                        amountMinor: Math.abs(summary.track.budgetRemainingMinor ?? 0),
+                        currency: summary.track.currency,
+                      }}
+                      hide={hide}
+                    />
+                  </p>
+                )}
+              </div>
+              <ChevronRight size={16} className="text-slate-400" />
+            </Link>
+
+            <Link
+              to="/split"
+              className="flex items-center gap-3 border-t border-slate-100 px-4 py-3 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+            >
+              <Users className="text-brand-600" size={18} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Trip shares</p>
+                <p className="text-xs text-slate-500">Your share of Split expenses</p>
+              </div>
+              <p className="text-sm font-semibold tabular-nums">
+                <Money
+                  value={{ amountMinor: summary.personalSpending.splitShareMinor, currency: summary.personalSpending.currency }}
+                  hide={hide}
+                />
+              </p>
+              <ChevronRight size={16} className="text-slate-400" />
+            </Link>
+          </div>
         </Card>
       </section>
 

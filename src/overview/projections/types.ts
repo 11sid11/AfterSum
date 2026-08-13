@@ -36,6 +36,12 @@ export interface PersonExposure {
 
 export interface OverviewSummary {
   month: string;
+  personalSpending: {
+    trackMinor: number;
+    splitShareMinor: number;
+    totalMinor: number;
+    currency: CurrencyCode;
+  };
   track: {
     spentMinor: number;
     incomeMinor: number;
