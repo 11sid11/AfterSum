@@ -1,6 +1,11 @@
 /**
  * Activity feed for a group: expenses and settlements in
  * reverse chronological order.
+ *
+ * Settlements are intentionally read-only here. Removing a recorded
+ * payment changes the financial state of the trip, so that action must
+ * only be exposed from the dedicated Balances > Recorded payments UI
+ * where the consequence can be made explicit.
  */
 
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -10,7 +15,6 @@ import { usePeople, useSelf } from '@shared/people/queries';
 import { ExpenseListItem } from '@modules/split/components/ExpenseListItem';
 import { SettlementListItem } from '@modules/split/components/SettlementListItem';
 import { splitExpenseRepository } from '@modules/split/repositories/splitExpenseRepository';
-import { splitSettlementRepository } from '@modules/split/repositories/splitSettlementRepository';
 import { UNDO_TIMEOUT_MS } from '@app/constants';
 import type { SplitExpense, SplitSettlement } from '@db/schema';
 
@@ -50,14 +54,6 @@ export function SplitGroupActivityPage() {
     });
   };
 
-  const handleDeleteSettlement = async (id: string) => {
-    await splitSettlementRepository.softDelete(id);
-    toast.show('Settlement deleted', {
-      action: { label: 'Undo', onClick: () => void splitSettlementRepository.restore(id) },
-      duration: UNDO_TIMEOUT_MS,
-    });
-  };
-
   return (
     <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between">
@@ -91,16 +87,8 @@ export function SplitGroupActivityPage() {
                 </button>
               </div>
             ) : (
-              <div key={item.data.id} className="relative">
+              <div key={item.data.id}>
                 <SettlementListItem settlement={item.data} people={people} selfPersonId={self.id} />
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteSettlement(item.data.id)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-800"
-                  aria-label="Delete settlement"
-                >
-                  ×
-                </button>
               </div>
             ),
           )}
