@@ -6,6 +6,7 @@ import { usePeople, useSelf } from '@shared/people/queries';
 import { splitExpenseRepository } from '@modules/split/repositories/splitExpenseRepository';
 import { SplitMethodSelector } from '@modules/split/components/SplitMethodSelector';
 import { SplitAllocationEditor } from '@modules/split/components/SplitAllocationEditor';
+import { SplitCategoryIcon } from '@modules/split/components/SplitCategoryIcon';
 import { SPLIT_CATEGORIES } from '@modules/split/domain/categories';
 import { todayDateOnly } from '@shared/dates';
 import { decimalToMinor } from '@shared/money';
@@ -100,19 +101,19 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
 
     setSubmitting(true);
     try {
-      const { expense } = await splitExpenseRepository.createAtomic({
+      await splitExpenseRepository.createAtomic({
         groupId,
         title: title.trim(),
         amountMinor: amount,
         currency,
         date,
         splitMethod: method,
+        category,
         note: note.trim() || undefined,
         payers: [{ personId: payerId, amountMinor: amount }],
         participantIds,
         allocation: buildAllocationInput(method, participantIds, allocation, currency),
       });
-      await splitExpenseRepository.update(expense.id, { category });
       toast.show('Expense added', { variant: 'success' });
       navigate({ to: '/split/group/$groupId', params: { groupId } });
     } catch (err) {
@@ -125,10 +126,10 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
   return (
     <form className="mx-auto max-w-xl space-y-5 pb-24" onSubmit={save}>
       <header className="flex items-center gap-2">
-        <button type="button" onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })} className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Back to trip">
+        <button type="button" onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })} className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Back to trip">
           <ArrowLeft size={18} />
         </button>
-        <div><h1 className="text-lg font-semibold">New expense</h1><p className="text-xs text-slate-500">{groupName}</p></div>
+        <div className="min-w-0"><h1 className="text-lg font-semibold">New expense</h1><p className="truncate text-xs text-slate-500">{groupName}</p></div>
       </header>
 
       {tripPeople.length === 0 ? (
@@ -136,7 +137,7 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
       ) : (
         <>
           <section className="space-y-3">
-            <Input label="What was it?" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Dinner, Hotel, Taxi…" autoFocus required />
+            <Input label="What was it?" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Dinner, Hotel, Taxi…" autoFocus required />
             <MoneyInput label="Amount" currency={currency} value={amount} onChange={setAmount} />
           </section>
 
@@ -153,7 +154,15 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
           </section>
 
           <ChoiceSection label="Category">
-            {SPLIT_CATEGORIES.map((item) => <ChoiceChip key={item.value} label={`${item.icon} ${item.label}`} selected={category === item.value} onClick={() => setCategory(item.value)} />)}
+            {SPLIT_CATEGORIES.map((item) => (
+              <ChoiceChip
+                key={item.value}
+                label={item.label}
+                icon={<SplitCategoryIcon category={item.value} size={15} />}
+                selected={category === item.value}
+                onClick={() => setCategory(item.value)}
+              />
+            ))}
           </ChoiceSection>
 
           <section className="space-y-2">
@@ -170,7 +179,7 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
             <summary className="cursor-pointer px-4 py-3 text-sm font-medium">More details</summary>
             <div className="space-y-3 border-t border-slate-100 p-4 dark:border-slate-800">
               <DateInput label="Date" value={date} onChange={setDate} />
-              <Textarea label="Note / receipt reference" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note, bill number or receipt filename" />
+              <Textarea label="Note / receipt reference" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note, bill number or receipt filename" />
             </div>
           </details>
 
@@ -186,10 +195,10 @@ function ChoiceSection({ label, children }: { label: string; children: React.Rea
   return <section className="space-y-2"><h2 className="text-sm font-semibold">{label}</h2><div className="flex flex-wrap gap-2">{children}</div></section>;
 }
 
-function ChoiceChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+function ChoiceChip({ label, icon, selected, onClick }: { label: string; icon?: React.ReactNode; selected: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={selected} className={selected ? 'inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-medium text-white' : 'inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'}>
-      {selected && <Check size={14} />}{label}
+      {selected && <Check size={14} />}{icon}{label}
     </button>
   );
 }
