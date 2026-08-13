@@ -51,6 +51,10 @@ export interface AppSettings extends BaseEntity {
   theme: AppTheme;
   hideAmounts: boolean;
   googleSyncEnabled: boolean;
+  /** Stable Google account subject identifier. */
+  googleAccountId?: string;
+  /** Display-only account label; never use email as the identity key. */
+  googleAccountEmail?: string;
   googleSpreadsheetId?: string;
   googleFolderId?: string;
   onboardingComplete: boolean;
