@@ -207,11 +207,8 @@ export async function disconnectGoogleAuthorization(): Promise<void> {
 }
 
 async function loadGoogleLibraries(): Promise<void> {
-  if (
-    window.google?.accounts.oauth2 &&
-    window.gapi?.client?.drive &&
-    window.gapi.client.sheets
-  ) {
+  const existingClient = window.gapi?.client;
+  if (window.google?.accounts.oauth2 && existingClient?.drive && existingClient.sheets) {
     return;
   }
   if (loadPromise) return loadPromise;
