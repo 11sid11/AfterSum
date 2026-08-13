@@ -1,61 +1,83 @@
 /**
  * Add a Track transaction.
  *
- * Uses TanStack Form with the Zod schema from
- * `modules/track/domain/validation`. Reads `?type=` from the
- * URL to prefill the type.
+ * The form mounts only after settings are available so its persisted currency
+ * can never drift from the currency shown by MoneyInput.
  */
 
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useForm } from '@tanstack/react-form';
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Card, Button, Input, Textarea, MoneyInput, DateInput, CategoryPicker, PaymentMethodPicker, useToast, Spinner } from '@components/ui';
+import {
+  Card,
+  Button,
+  Input,
+  Textarea,
+  MoneyInput,
+  DateInput,
+  CategoryPicker,
+  PaymentMethodPicker,
+  useToast,
+  Spinner,
+} from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
 import { trackTransactionRepository } from '@modules/track/repositories/trackTransactionRepository';
-import { TrackTransactionInputSchema, type TrackTransactionInput } from '@modules/track/domain/validation';
+import {
+  TrackTransactionInputSchema,
+  type TrackTransactionInput,
+} from '@modules/track/domain/validation';
 import type { TrackTransactionType } from '@db/schema';
 
 const FormSchema = TrackTransactionInputSchema;
 type FormValues = TrackTransactionInput;
 
 export function TrackAddPage() {
+  const settings = useAppSettings();
+
+  if (!settings) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center">
+        <Spinner />
+      </div>
+    );
+  }
+
+  return <TrackAddForm currency={settings.defaultCurrency} />;
+}
+
+function TrackAddForm({ currency }: { currency: string }) {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: TrackTransactionType };
-  const settings = useAppSettings();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
-
   const initialType: TrackTransactionType = search?.type === 'income' ? 'income' : 'expense';
-  const initialValues: FormValues = {
-    type: initialType,
-    title: '',
-    amountMinor: 0,
-    currency: settings?.defaultCurrency ?? 'INR',
-    categoryId: '',
-    paymentMethod: undefined,
-    date: todayDateOnly(),
-    note: '',
-  };
 
   const form = useForm({
-    defaultValues: initialValues,
-    validators: {
-      onChange: FormSchema,
-    },
+    defaultValues: {
+      type: initialType,
+      title: '',
+      amountMinor: 0,
+      currency,
+      categoryId: '',
+      paymentMethod: undefined,
+      date: todayDateOnly(),
+      note: '',
+    } as FormValues,
+    validators: { onChange: FormSchema },
     onSubmit: async ({ value }) => {
       setSubmitting(true);
       try {
-        const cleaned = {
+        const cleaned: TrackTransactionInput = {
           type: value.type,
           title: value.title.trim(),
           amountMinor: value.amountMinor,
-          currency: value.currency,
+          currency,
           categoryId: value.categoryId || undefined,
           paymentMethod: value.paymentMethod,
           date: value.date,
-          note: value.note || undefined,
+          note: value.note?.trim() || undefined,
         };
         await trackTransactionRepository.create(cleaned);
         toast.show(`${cleaned.type === 'expense' ? 'Expense' : 'Income'} added`);
@@ -67,14 +89,6 @@ export function TrackAddPage() {
     },
   });
 
-  if (!settings) {
-    return (
-      <div className="grid min-h-[40vh] place-items-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <header className="flex items-center gap-2">
@@ -82,17 +96,17 @@ export function TrackAddPage() {
           type="button"
           onClick={() => navigate({ to: '/track' })}
           aria-label="Back"
-          className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-lg font-semibold">Add</h1>
+        <h1 className="text-lg font-semibold">Add transaction</h1>
       </header>
 
       <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
           void form.handleSubmit();
         }}
         className="space-y-4"
@@ -101,21 +115,21 @@ export function TrackAddPage() {
           <form.Field name="type">
             {(field) => (
               <div className="inline-flex w-full rounded-full border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-900">
-                {(['expense', 'income'] as const).map((t) => (
+                {(['expense', 'income'] as const).map((type) => (
                   <button
-                    key={t}
+                    key={type}
                     type="button"
-                    onClick={() => field.handleChange(t)}
-                    aria-pressed={field.state.value === t}
+                    onClick={() => field.handleChange(type)}
+                    aria-pressed={field.state.value === type}
                     className={
-                      field.state.value === t
-                        ? t === 'expense'
+                      field.state.value === type
+                        ? type === 'expense'
                           ? 'flex-1 rounded-full bg-rose-600 px-3 py-1.5 font-medium text-white'
                           : 'flex-1 rounded-full bg-emerald-600 px-3 py-1.5 font-medium text-white'
                         : 'flex-1 rounded-full px-3 py-1.5 text-slate-600 dark:text-slate-300'
                     }
                   >
-                    {t === 'expense' ? 'Expense' : 'Income'}
+                    {type === 'expense' ? 'Expense' : 'Income'}
                   </button>
                 ))}
               </div>
@@ -132,8 +146,8 @@ export function TrackAddPage() {
                   name={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  error={field.state.meta.errors.find((e) => e !== undefined && (e as { message?: string }).message)?.message as string | undefined}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
                   placeholder="e.g. Coffee, Salary, Uber"
                   autoFocus
                 />
@@ -145,9 +159,9 @@ export function TrackAddPage() {
                 <MoneyInput
                   label="Amount"
                   value={field.state.value}
-                  currency={settings.defaultCurrency}
-                  onChange={(v) => field.handleChange(v)}
-                  error={field.state.meta.errors.find((e) => e !== undefined && (e as { message?: string }).message)?.message as string | undefined}
+                  currency={currency}
+                  onChange={(value) => field.handleChange(value)}
+                  error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
                 />
               )}
             </form.Field>
@@ -157,8 +171,8 @@ export function TrackAddPage() {
                 <DateInput
                   label="Date"
                   value={field.state.value}
-                  onChange={(d) => field.handleChange(d)}
-                  error={field.state.meta.errors.find((e) => e !== undefined && (e as { message?: string }).message)?.message as string | undefined}
+                  onChange={(date) => field.handleChange(date)}
+                  error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
                 />
               )}
             </form.Field>
@@ -178,7 +192,7 @@ export function TrackAddPage() {
               {(field) => (
                 <PaymentMethodPicker
                   value={field.state.value}
-                  onChange={(m) => field.handleChange(m)}
+                  onChange={(method) => field.handleChange(method)}
                 />
               )}
             </form.Field>
@@ -190,7 +204,7 @@ export function TrackAddPage() {
                   name={field.name}
                   value={field.state.value ?? ''}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(event) => field.handleChange(event.target.value)}
                   maxLength={500}
                 />
               )}
@@ -199,12 +213,7 @@ export function TrackAddPage() {
         </Card>
 
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate({ to: '/track' })}
-            disabled={submitting}
-          >
+          <Button type="button" variant="ghost" onClick={() => navigate({ to: '/track' })} disabled={submitting}>
             Cancel
           </Button>
           <Button type="submit" disabled={submitting}>
