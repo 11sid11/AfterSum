@@ -1,5 +1,5 @@
 import { Modal, Money } from '@components/ui';
-import type { Person, SplitExpense } from '@db/schema';
+import type { Person, SplitExpense, SplitExpenseCategory } from '@db/schema';
 import { getSplitCategoryMeta } from '../domain/categories';
 
 interface TripInsightsModalProps {
@@ -31,7 +31,7 @@ export function TripInsightsModal({
     .filter((share) => activeIds.has(share.expenseId) && share.personId === selfPersonId)
     .reduce((sum, share) => sum + share.amountMinor, 0);
 
-  const categoryTotals = new Map<string, number>();
+  const categoryTotals = new Map<SplitExpenseCategory, number>();
   for (const expense of expenses) {
     const key = expense.category ?? 'other';
     categoryTotals.set(key, (categoryTotals.get(key) ?? 0) + expense.amountMinor);
@@ -66,7 +66,7 @@ export function TripInsightsModal({
                 return (
                   <div key={category}>
                     <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">{getSplitCategoryMeta(category as never).label}</span>
+                      <span className="font-medium">{getSplitCategoryMeta(category).label}</span>
                       <span className="shrink-0 tabular-nums">
                         <Money value={{ amountMinor: amount, currency }} hide={hideAmounts} />
                         <span className="ml-2 text-xs text-slate-400">{percent}%</span>
