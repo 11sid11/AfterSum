@@ -7,7 +7,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { ensureFirstLaunch } from '@db/seed';
-import { ToastProvider } from '@components/ui';
+import { CelebrationProvider, ToastProvider } from '@components/ui';
 import { ensureDailyRecoverySnapshot } from '@/backup/recovery';
 import { ThemeSync } from '@shared/settings/ThemeSync';
 
@@ -50,8 +50,8 @@ export function AppProviders({ children }: AppProvidersProps) {
   if (error) {
     return (
       <div className="grid min-h-screen place-items-center p-4 text-center">
-        <div>
-          <h1 className="text-lg font-semibold text-red-600">Database error</h1>
+        <div className="card max-w-md">
+          <h1 className="text-lg font-semibold text-rose-600">Database error</h1>
           <p className="mt-2 text-sm text-slate-500">{error}</p>
           <p className="mt-1 text-xs text-slate-400">
             Try clearing site data in your browser settings.
@@ -63,16 +63,21 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   if (!ready) {
     return (
-      <div className="grid min-h-screen place-items-center text-slate-400">
-        <p>Loading…</p>
+      <div className="grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />
+          Opening AfterSum
+        </div>
       </div>
     );
   }
 
   return (
-    <ToastProvider>
-      <ThemeSync />
-      {children}
-    </ToastProvider>
+    <CelebrationProvider>
+      <ToastProvider>
+        <ThemeSync />
+        {children}
+      </ToastProvider>
+    </CelebrationProvider>
   );
 }
