@@ -10,7 +10,6 @@
 import { getDB } from '@db/database';
 import { APP_VERSION, SCHEMA_VERSION } from '@app/constants';
 import { nowISO } from '@shared/dates';
-import { markDirty } from '@sync/status';
 import type {
   Person,
   TrackTransaction,
@@ -186,8 +185,6 @@ export async function restoreBackup(backup: Backup): Promise<void> {
       await db.lendEntries.bulkPut(backup.lend.entries);
     },
   );
-  // Mark dirty for sync.
-  await markDirty();
 }
 
 /** Compute a summary of what the backup contains. */
