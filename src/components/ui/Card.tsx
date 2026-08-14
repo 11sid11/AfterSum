@@ -7,7 +7,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const surfaceClass =
-  'rounded-[18px] border border-slate-200/85 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_16px_rgb(15_23_42/0.035)] dark:border-white/[0.075] dark:bg-[#141821] dark:shadow-none';
+  'rounded-[18px] border border-slate-200/[0.85] bg-white shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_16px_rgb(15_23_42/0.035)] dark:border-white/[0.075] dark:bg-[#141821] dark:shadow-none';
 
 export function Card({ children, className, padded = true, ...rest }: CardProps) {
   return (
