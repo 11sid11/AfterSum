@@ -1,7 +1,17 @@
 import { useForm } from '@tanstack/react-form';
 import { useState } from 'react';
 import { z } from 'zod';
-import { Card, Button, Textarea, MoneyInput, DateInput, PersonPicker, useToast, Spinner } from '@components/ui';
+import {
+  Button,
+  Card,
+  DateInput,
+  MoneyInput,
+  PersonPicker,
+  Spinner,
+  Textarea,
+  useCelebration,
+  useToast,
+} from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
 import { lendEntryRepository } from '../repositories/lendEntryRepository';
@@ -68,6 +78,7 @@ export function LendEntryForm(props: LendEntryFormProps) {
 
 function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurrency, onSaved, onCancel }: LendEntryFormProps & { defaultCurrency: CurrencyCode }) {
   const toast = useToast();
+  const { celebrate } = useCelebration();
   const [submitting, setSubmitting] = useState(false);
   const [personId, setPersonId] = useState<string | undefined>(defaultPersonId);
   const existingLedger = useLendLedgerForPerson(personId, defaultCurrency);
@@ -97,7 +108,10 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
           note: typeof value.note === 'string' ? value.note.trim() || undefined : undefined,
         };
         const created = await lendEntryRepository.create(cleaned);
-        toast.show('Entry added', { variant: 'success' });
+        const repayment = value.type === 'repayment_received' || value.type === 'repayment_given';
+        const message = repayment ? 'Repayment recorded' : 'Entry added';
+        toast.show(message, { variant: 'success' });
+        celebrate({ kind: 'added', message });
         onSaved?.(created.id);
       } catch (err) {
         toast.show(err instanceof Error ? err.message : 'Could not save', { variant: 'error' });
@@ -107,54 +121,69 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
   });
 
   return (
-    <form onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void form.handleSubmit(); }} className="space-y-4">
+    <form onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void form.handleSubmit(); }} className="form-shell">
       <header className="flex items-center gap-2">
-        <button type="button" onClick={onCancel} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft size={18} /></button>
-        <h1 className="text-lg font-semibold">Add Lend entry</h1>
+        <button type="button" onClick={onCancel} aria-label="Back" className="icon-button"><ArrowLeft size={18} /></button>
+        <div>
+          <span className="module-chip mb-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Lend</span>
+          <h1 className="text-xl font-semibold tracking-[-0.035em]">Add entry</h1>
+        </div>
       </header>
 
       <Card>
         <form.Field name="type">
           {(field) => (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="label">What happened?</label>
               <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
                 {TYPE_OPTIONS.map((option) => {
                   const active = field.state.value === option.value;
                   const activeClass = option.tone === 'emerald'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200'
+                    ? 'border-emerald-500/25 bg-emerald-500/[0.09] text-emerald-700 dark:text-emerald-200'
                     : option.tone === 'rose'
-                      ? 'border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-200'
-                      : 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-200';
-                  return <button key={option.value} type="button" onClick={() => field.handleChange(option.value)} aria-pressed={active} className={active ? `min-h-11 rounded-xl border px-3 py-2 text-sm font-medium ${activeClass}` : 'min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300'}>{option.label}</button>;
+                      ? 'border-rose-500/25 bg-rose-500/[0.08] text-rose-700 dark:text-rose-200'
+                      : 'border-sky-500/25 bg-sky-500/[0.08] text-sky-700 dark:text-sky-200';
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => field.handleChange(option.value)}
+                      aria-pressed={active}
+                      className={active
+                        ? `min-h-12 rounded-[16px] border px-3 py-2 text-sm font-semibold shadow-soft-xs transition-[transform,border-color,background-color] duration-200 active:scale-[0.98] ${activeClass}`
+                        : 'min-h-12 rounded-[16px] border border-slate-900/[0.06] bg-white/60 px-3 py-2 text-sm font-medium text-slate-500 transition-[transform,border-color,background-color,color] duration-200 hover:border-slate-900/[0.1] hover:bg-white hover:text-slate-900 active:scale-[0.98] dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-slate-400 dark:hover:bg-white/[0.055] dark:hover:text-white'}
+                    >
+                      {option.label}
+                    </button>
+                  );
                 })}
               </div>
-              <p className="text-xs text-slate-500">{typeHelp(field.state.value)}</p>
+              <p className="text-xs leading-5 text-slate-500">{typeHelp(field.state.value)}</p>
             </div>
           )}
         </form.Field>
       </Card>
 
       <Card>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <form.Field name="personId" validators={{ onChange: ({ value }) => (!value ? 'Please select a person' : undefined) }}>
             {(field) => <PersonPicker value={field.state.value || undefined} onChange={(id) => { const next = id ?? ''; field.handleChange(next); setPersonId(next || undefined); }} excludeSelf error={extractError(field.state.meta.errors)} />}
           </form.Field>
           <form.Field name="amountMinor">{(field) => <MoneyInput label="Amount" value={field.state.value} currency={resolvedCurrency} onChange={(value) => field.handleChange(value)} error={extractError(field.state.meta.errors)} />}</form.Field>
           <form.Field name="date">{(field) => <DateInput label="Date" value={field.state.value} onChange={(date) => field.handleChange(date)} error={extractError(field.state.meta.errors)} />}</form.Field>
-          <details className="rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700">
-            <summary className="cursor-pointer text-sm font-medium">More details</summary>
-            <div className="mt-3 space-y-3">
+          <details className="rounded-[17px] border border-slate-900/[0.06] bg-slate-900/[0.02] px-3.5 py-3 dark:border-white/[0.07] dark:bg-white/[0.025]">
+            <summary className="cursor-pointer text-sm font-semibold tracking-[-0.01em]">More details</summary>
+            <div className="mt-4 space-y-4">
               <form.Field name="dueDate">{(field) => <DateInput label="Due date (optional)" value={field.state.value || undefined} onChange={(date) => field.handleChange(date)} />}</form.Field>
-              <form.Field name="note">{(field) => <Textarea label="Note" name={field.name} value={field.state.value ?? ''} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} maxLength={500} />}</form.Field>
+              <form.Field name="note">{(field) => <Textarea label="Note" name={field.name} value={field.state.value ?? ''} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} maxLength={500} placeholder="Optional" />}</form.Field>
             </div>
           </details>
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>Cancel</Button>
-        <Button type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save entry'}</Button>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting} size="lg">Cancel</Button>
+        <Button type="submit" disabled={submitting} size="lg">{submitting ? 'Saving…' : 'Save entry'}</Button>
       </div>
     </form>
   );
