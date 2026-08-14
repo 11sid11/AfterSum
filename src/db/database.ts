@@ -31,6 +31,8 @@ import type {
   SyncMetadata,
 } from './schema';
 
+// Keep the original database name permanently: changing it would make existing
+// browser data appear to disappear by opening a different IndexedDB database.
 export const DB_NAME = 'finance-utility';
 
 export class FinanceDB extends Dexie {
@@ -56,7 +58,9 @@ export class FinanceDB extends Dexie {
   lendLedgers!: Table<LendLedger, string>;
   lendEntries!: Table<LendEntry, string>;
 
-  // Sync
+  // Legacy compatibility only. Cloud sync is no longer active, but these
+  // version-1 tables remain declared so existing IndexedDB databases are not
+  // destructively migrated merely to remove dormant storage.
   syncQueue!: Table<SyncQueueItem, string>;
   syncMetadata!: Table<SyncMetadata, string>;
 
@@ -86,7 +90,7 @@ export class FinanceDB extends Dexie {
       lendLedgers: 'id, personId, currency, archived, [personId+currency]',
       lendEntries: 'id, ledgerId, type, date, deletedAt, [ledgerId+date]',
 
-      // Sync
+      // Legacy compatibility tables; see the declaration above.
       syncQueue: 'id, entity, entityId, op, createdAt',
       syncMetadata: 'id',
     });
