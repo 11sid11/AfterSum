@@ -12,7 +12,7 @@ import {
   Search as SearchIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useAppSettings } from '@shared/settings/useSettings';
+import { getOnboardingRedirect } from '@app/onboarding/routeGuard';
 import { AddMenu } from './AddMenu';
 
 interface NavItem {
@@ -35,7 +35,6 @@ function isActivePath(currentPath: string, to: string): boolean {
 }
 
 export function RootLayout({ children }: { children?: ReactNode }) {
-  const settings = useAppSettings();
   const navigate = useNavigate();
   const state = useRouterState();
   const [addOpen, setAddOpen] = useState(false);
@@ -44,10 +43,24 @@ export function RootLayout({ children }: { children?: ReactNode }) {
   const showGlobalAdd = currentPath === '/overview';
 
   useEffect(() => {
-    if (settings && !settings.onboardingComplete && !isOnboarding) {
-      void navigate({ to: '/onboarding', replace: true });
-    }
-  }, [isOnboarding, navigate, settings]);
+    let cancelled = false;
+
+    const enforceOnboardingRoute = async () => {
+      try {
+        const redirectTo = await getOnboardingRedirect(currentPath);
+        if (!cancelled && redirectTo && redirectTo !== currentPath) {
+          void navigate({ to: redirectTo, replace: true });
+        }
+      } catch (error) {
+        console.warn('Could not verify onboarding state.', error);
+      }
+    };
+
+    void enforceOnboardingRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPath, navigate]);
 
   if (isOnboarding) {
     return (
