@@ -1,11 +1,7 @@
-/**
- * Simple toast + undo hook.
- *
- * Used after destructive operations (delete, settle) to give
- * the user a chance to undo within a short window.
- */
+/** Compact app feedback with optional undo action. */
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { CircleAlert, CircleCheck, Info } from 'lucide-react';
 import { UNDO_TIMEOUT_MS } from '@app/constants';
 
 type ToastVariant = 'default' | 'success' | 'error';
@@ -34,7 +30,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const dismiss = useCallback((id: number) => {
-    setToasts((cur) => cur.filter((t) => t.id !== id));
+    setToasts((cur) => cur.filter((toast) => toast.id !== id));
   }, []);
 
   const show = useCallback<ToastContextValue['show']>((message, opts) => {
@@ -47,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       duration: opts?.duration ?? (opts?.action ? UNDO_TIMEOUT_MS : 3000),
     };
     setToasts((cur) => [...cur, toast]);
-    setTimeout(() => dismiss(id), toast.duration);
+    window.setTimeout(() => dismiss(id), toast.duration);
   }, [dismiss]);
 
   const value = useMemo(() => ({ show, dismiss }), [show, dismiss]);
@@ -55,28 +51,39 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-4">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-            role="status"
-          >
-            <span className="flex-1 text-sm">{t.message}</span>
-            {t.action && (
-              <button
-                type="button"
-                onClick={() => {
-                  t.action?.onClick();
-                  dismiss(t.id);
-                }}
-                className="text-sm font-semibold text-brand-600 hover:underline"
-              >
-                {t.action.label}
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-5">
+        {toasts.map((toast) => {
+          const Icon = toast.variant === 'success' ? CircleCheck : toast.variant === 'error' ? CircleAlert : Info;
+          const iconClass = toast.variant === 'success'
+            ? 'bg-emerald-400/[0.15] text-emerald-300'
+            : toast.variant === 'error'
+              ? 'bg-rose-400/[0.15] text-rose-300'
+              : 'bg-white/[0.08] text-white/70';
+          return (
+            <div
+              key={toast.id}
+              className="toast-enter pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-[18px] border border-white/10 bg-[#17171d]/95 px-3.5 py-3 text-white shadow-soft-lg backdrop-blur-xl"
+              role="status"
+            >
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${iconClass}`}>
+                <Icon size={17} />
+              </span>
+              <span className="min-w-0 flex-1 text-sm font-medium text-white/90">{toast.message}</span>
+              {toast.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.action?.onClick();
+                    dismiss(toast.id);
+                  }}
+                  className="min-h-9 shrink-0 rounded-xl px-2.5 text-xs font-semibold text-brand-200 transition-colors hover:bg-white/[0.08] hover:text-white"
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </ToastCtx.Provider>
   );

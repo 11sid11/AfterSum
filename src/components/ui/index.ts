@@ -11,4 +11,5 @@ export { BalanceText } from './BalanceText';
 export { Toggle } from './Toggle';
 export { Spinner, Skeleton } from './Tabs';
 export { ToastProvider, useToast } from './Toast';
+export { CelebrationProvider, useCelebration, type CelebrationKind } from './Celebration';
 export { Modal } from './Modal';

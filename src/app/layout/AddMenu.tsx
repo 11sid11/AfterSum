@@ -1,7 +1,7 @@
 /** Universal Add menu shown from Overview only. */
 
 import { useNavigate } from '@tanstack/react-router';
-import { Receipt, X, TrendingUp, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Receipt, X, TrendingUp, ArrowDownToLine, ArrowUpFromLine, Users } from 'lucide-react';
 
 interface AddMenuProps {
   onClose: () => void;
@@ -10,19 +10,30 @@ interface AddMenuProps {
 export function AddMenu({ onClose }: AddMenuProps) {
   const navigate = useNavigate();
   const items = [
-    { label: 'Personal expense', hint: 'Track', to: '/track/add', search: { type: 'expense' as const }, icon: Receipt },
-    { label: 'Income', hint: 'Track', to: '/track/add', search: { type: 'income' as const }, icon: TrendingUp },
-    { label: 'Lent money', hint: 'Lend', to: '/lend/add', search: { type: 'lent' as const }, icon: ArrowUpFromLine },
-    { label: 'Borrowed money', hint: 'Lend', to: '/lend/add', search: { type: 'borrowed' as const }, icon: ArrowDownToLine },
+    { label: 'Personal expense', hint: 'Track', to: '/track/add', search: { type: 'expense' as const }, icon: Receipt, tone: 'bg-rose-500/[0.09] text-rose-600 dark:text-rose-300' },
+    { label: 'Income', hint: 'Track', to: '/track/add', search: { type: 'income' as const }, icon: TrendingUp, tone: 'bg-emerald-500/[0.09] text-emerald-600 dark:text-emerald-300' },
+    { label: 'Lent money', hint: 'Lend', to: '/lend/add', search: { type: 'lent' as const }, icon: ArrowUpFromLine, tone: 'bg-sky-500/[0.09] text-sky-600 dark:text-sky-300' },
+    { label: 'Borrowed money', hint: 'Lend', to: '/lend/add', search: { type: 'borrowed' as const }, icon: ArrowDownToLine, tone: 'bg-amber-500/[0.09] text-amber-700 dark:text-amber-300' },
   ];
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/45 backdrop-blur-[2px] sm:items-center sm:p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md animate-slide-up rounded-t-[28px] border border-white/40 bg-white p-5 shadow-2xl dark:border-slate-700/60 dark:bg-slate-900 sm:rounded-[28px] sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div><h2 className="text-lg font-semibold tracking-tight">Quick add</h2><p className="mt-0.5 text-xs text-slate-500">Choose what you want to record.</p></div>
+    <div
+      className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-slate-950/[0.45] backdrop-blur-[5px] sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-panel w-full max-w-md rounded-t-[30px] border border-slate-900/[0.07] bg-[#fbfbfc] p-5 shadow-soft-lg dark:border-white/[0.08] dark:bg-[#111217] sm:rounded-[30px] sm:p-6">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">New record</p>
+            <h2 className="mt-1 text-[20px] font-semibold tracking-[-0.035em]">Quick add</h2>
+          </div>
           <button type="button" onClick={onClose} aria-label="Close" className="icon-button"><X size={18} /></button>
         </div>
+
         <ul className="grid grid-cols-2 gap-2.5">
           {items.map((item) => {
             const Icon = item.icon;
@@ -34,24 +45,32 @@ export function AddMenu({ onClose }: AddMenuProps) {
                     onClose();
                     navigate({ to: item.to, search: item.search } as never);
                   }}
-                  className="flex min-h-24 w-full flex-col items-start justify-between rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+                  className="surface-lift flex min-h-28 w-full flex-col items-start justify-between rounded-[22px] border border-slate-900/[0.06] bg-white/90 p-3.5 text-left shadow-soft-xs dark:border-white/[0.07] dark:bg-white/[0.04] dark:shadow-none"
                 >
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300"><Icon size={17} /></span>
-                  <span><span className="block text-sm font-semibold">{item.label}</span><span className="mt-0.5 block text-[11px] text-slate-400">{item.hint}</span></span>
+                  <span className={`grid h-10 w-10 place-items-center rounded-[15px] ${item.tone}`}><Icon size={18} /></span>
+                  <span>
+                    <span className="block text-sm font-semibold tracking-[-0.015em]">{item.label}</span>
+                    <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{item.hint}</span>
+                  </span>
                 </button>
               </li>
             );
           })}
         </ul>
+
         <button
           type="button"
           onClick={() => {
             onClose();
             navigate({ to: '/split' });
           }}
-          className="mt-3 w-full rounded-2xl bg-slate-50 px-3.5 py-3 text-left text-xs leading-5 text-slate-500 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800"
+          className="interactive-row mt-3 flex w-full items-center gap-3 rounded-[20px] border border-slate-900/[0.055] bg-slate-900/[0.025] px-3.5 py-3 text-left dark:border-white/[0.07] dark:bg-white/[0.035]"
         >
-          Splitting an expense? Open <strong className="font-semibold text-slate-700 dark:text-slate-200">Split</strong> and choose the trip first.
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-brand-500/[0.09] text-brand-600 dark:text-brand-300"><Users size={16} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold tracking-[-0.01em]">Split an expense</span>
+            <span className="mt-0.5 block text-xs text-slate-500">Choose the trip first.</span>
+          </span>
         </button>
       </div>
     </div>
