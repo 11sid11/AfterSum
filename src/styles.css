@@ -113,7 +113,7 @@
 
 @layer components {
   .card {
-    @apply rounded-[26px] border border-slate-900/[0.06] bg-white/95 shadow-soft-sm backdrop-blur-[10px] dark:border-white/[0.07] dark:bg-slate-900/86 dark:shadow-none;
+    @apply rounded-[26px] border border-slate-900/[0.06] bg-white/95 shadow-soft-sm backdrop-blur-[10px] dark:border-white/[0.07] dark:bg-slate-900/[0.86] dark:shadow-none;
   }
 
   .btn {
