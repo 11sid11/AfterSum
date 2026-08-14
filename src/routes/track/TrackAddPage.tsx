@@ -10,16 +10,17 @@ import { useForm } from '@tanstack/react-form';
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import {
-  Card,
   Button,
-  Input,
-  Textarea,
-  MoneyInput,
-  DateInput,
+  Card,
   CategoryPicker,
+  DateInput,
+  Input,
+  MoneyInput,
   PaymentMethodPicker,
-  useToast,
   Spinner,
+  Textarea,
+  useCelebration,
+  useToast,
 } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
@@ -51,6 +52,7 @@ function TrackAddForm({ currency }: { currency: string }) {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: TrackTransactionType };
   const toast = useToast();
+  const { celebrate } = useCelebration();
   const [submitting, setSubmitting] = useState(false);
   const initialType: TrackTransactionType = search?.type === 'income' ? 'income' : 'expense';
 
@@ -80,7 +82,9 @@ function TrackAddForm({ currency }: { currency: string }) {
           note: value.note?.trim() || undefined,
         };
         await trackTransactionRepository.create(cleaned);
-        toast.show(`${cleaned.type === 'expense' ? 'Expense' : 'Income'} added`);
+        const message = `${cleaned.type === 'expense' ? 'Expense' : 'Income'} added`;
+        toast.show(message, { variant: 'success' });
+        celebrate({ kind: 'added', message });
         navigate({ to: '/track' });
       } catch (err) {
         toast.show(err instanceof Error ? err.message : 'Could not save', { variant: 'error' });
@@ -90,17 +94,15 @@ function TrackAddForm({ currency }: { currency: string }) {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="form-shell">
       <header className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/track' })}
-          aria-label="Back"
-          className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
+        <button type="button" onClick={() => navigate({ to: '/track' })} aria-label="Back" className="icon-button">
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-lg font-semibold">Add transaction</h1>
+        <div>
+          <span className="module-chip mb-1.5"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Track</span>
+          <h1 className="text-xl font-semibold tracking-[-0.035em]">Add transaction</h1>
+        </div>
       </header>
 
       <form
@@ -111,34 +113,33 @@ function TrackAddForm({ currency }: { currency: string }) {
         }}
         className="space-y-4"
       >
-        <Card>
-          <form.Field name="type">
-            {(field) => (
-              <div className="inline-flex w-full rounded-full border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-900">
-                {(['expense', 'income'] as const).map((type) => (
+        <form.Field name="type">
+          {(field) => (
+            <div className="glass-bar grid grid-cols-2 rounded-[19px] p-1 text-sm">
+              {(['expense', 'income'] as const).map((type) => {
+                const selected = field.state.value === type;
+                return (
                   <button
                     key={type}
                     type="button"
                     onClick={() => field.handleChange(type)}
-                    aria-pressed={field.state.value === type}
-                    className={
-                      field.state.value === type
-                        ? type === 'expense'
-                          ? 'flex-1 rounded-full bg-rose-600 px-3 py-1.5 font-medium text-white'
-                          : 'flex-1 rounded-full bg-emerald-600 px-3 py-1.5 font-medium text-white'
-                        : 'flex-1 rounded-full px-3 py-1.5 text-slate-600 dark:text-slate-300'
-                    }
+                    aria-pressed={selected}
+                    className={selected
+                      ? type === 'expense'
+                        ? 'min-h-10 rounded-[15px] bg-rose-600 px-3 font-semibold text-white shadow-soft-xs'
+                        : 'min-h-10 rounded-[15px] bg-emerald-600 px-3 font-semibold text-white shadow-soft-xs'
+                      : 'min-h-10 rounded-[15px] px-3 font-semibold text-slate-500 transition-colors hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}
                   >
                     {type === 'expense' ? 'Expense' : 'Income'}
                   </button>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </Card>
+                );
+              })}
+            </div>
+          )}
+        </form.Field>
 
         <Card>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <form.Field name="title">
               {(field) => (
                 <Input
@@ -148,7 +149,7 @@ function TrackAddForm({ currency }: { currency: string }) {
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
                   error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
-                  placeholder="e.g. Coffee, Salary, Uber"
+                  placeholder="Coffee, salary, Uber…"
                   autoFocus
                 />
               )}
@@ -166,34 +167,33 @@ function TrackAddForm({ currency }: { currency: string }) {
               )}
             </form.Field>
 
-            <form.Field name="date">
-              {(field) => (
-                <DateInput
-                  label="Date"
-                  value={field.state.value}
-                  onChange={(date) => field.handleChange(date)}
-                  error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
-                />
-              )}
-            </form.Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <form.Field name="date">
+                {(field) => (
+                  <DateInput
+                    label="Date"
+                    value={field.state.value}
+                    onChange={(date) => field.handleChange(date)}
+                    error={field.state.meta.errors.find((error) => error !== undefined && (error as { message?: string }).message)?.message as string | undefined}
+                  />
+                )}
+              </form.Field>
 
-            <form.Field name="type">
-              {(field) => (
-                <CategoryPicker
-                  type={field.state.value}
-                  value={form.getFieldValue('categoryId') || undefined}
-                  onChange={(id) => form.setFieldValue('categoryId', id ?? '')}
-                  allowEmpty
-                />
-              )}
-            </form.Field>
+              <form.Field name="type">
+                {(field) => (
+                  <CategoryPicker
+                    type={field.state.value}
+                    value={form.getFieldValue('categoryId') || undefined}
+                    onChange={(id) => form.setFieldValue('categoryId', id ?? '')}
+                    allowEmpty
+                  />
+                )}
+              </form.Field>
+            </div>
 
             <form.Field name="paymentMethod">
               {(field) => (
-                <PaymentMethodPicker
-                  value={field.state.value}
-                  onChange={(method) => field.handleChange(method)}
-                />
+                <PaymentMethodPicker value={field.state.value} onChange={(method) => field.handleChange(method)} />
               )}
             </form.Field>
 
@@ -206,17 +206,18 @@ function TrackAddForm({ currency }: { currency: string }) {
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
                   maxLength={500}
+                  placeholder="Optional"
                 />
               )}
             </form.Field>
           </div>
         </Card>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button type="button" variant="ghost" onClick={() => navigate({ to: '/track' })} disabled={submitting}>
+        <div className="grid grid-cols-2 gap-2.5">
+          <Button type="button" variant="ghost" onClick={() => navigate({ to: '/track' })} disabled={submitting} size="lg">
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting} size="lg">
             {submitting ? 'Saving…' : 'Save'}
           </Button>
         </div>
