@@ -8,8 +8,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { decimalToMinor, minorToDecimal, parseMoney } from '@shared/money';
-import type { CurrencyCode, Money } from '@shared/money';
+import { minorToDecimal, parseMoney } from '@shared/money';
+import type { CurrencyCode } from '@shared/money';
 import { CURRENCY_OPTIONS } from '@app/constants';
 
 interface MoneyInputProps {
@@ -40,7 +40,7 @@ export function MoneyInput({
   autoFocus,
   placeholder = '0.00',
 }: MoneyInputProps) {
-  const symbol = CURRENCY_OPTIONS.find((c) => c.code === currency)?.symbol ?? currency;
+  const symbol = CURRENCY_OPTIONS.find((option) => option.code === currency)?.symbol ?? currency;
   const [text, setText] = useState(() => editableValue(value, currency));
   const lastExternal = useRef(`${currency}:${value ?? ''}`);
 
@@ -51,8 +51,8 @@ export function MoneyInput({
     setText(editableValue(value, currency));
   }, [value, currency]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nextText = e.target.value;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextText = event.target.value;
     setText(nextText);
     if (nextText.trim() === '') {
       lastExternal.current = `${currency}:0`;
@@ -92,12 +92,4 @@ export function MoneyInput({
       )}
     </div>
   );
-}
-
-export function stringToMinor(text: string, currency: CurrencyCode): number {
-  return decimalToMinor(text, currency);
-}
-
-export function makeMoney(amountMinor: number, currency: CurrencyCode): Money {
-  return { amountMinor, currency };
 }

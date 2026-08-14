@@ -1,6 +1,6 @@
 /** Root layout — responsive shell for AfterSum's four primary areas. */
 
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Outlet, Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import {
   Home,
@@ -28,6 +28,8 @@ const NAV: NavItem[] = [
   { to: '/lend', label: 'Lend', icon: HandCoins },
 ];
 
+const APP_ICON_URL = `${import.meta.env.BASE_URL}pwa-192x192.png`;
+
 function isActivePath(currentPath: string, to: string): boolean {
   return currentPath === to || currentPath.startsWith(`${to}/`);
 }
@@ -41,9 +43,11 @@ export function RootLayout({ children }: { children?: ReactNode }) {
   const isOnboarding = currentPath.startsWith('/onboarding');
   const showGlobalAdd = currentPath === '/overview';
 
-  if (settings && !settings.onboardingComplete && !isOnboarding) {
-    queueMicrotask(() => navigate({ to: '/onboarding' }));
-  }
+  useEffect(() => {
+    if (settings && !settings.onboardingComplete && !isOnboarding) {
+      void navigate({ to: '/onboarding', replace: true });
+    }
+  }, [isOnboarding, navigate, settings]);
 
   if (isOnboarding) {
     return (
@@ -64,10 +68,15 @@ export function RootLayout({ children }: { children?: ReactNode }) {
             className="group flex shrink-0 items-center gap-2.5 rounded-xl px-1 py-1"
             aria-label="AfterSum overview"
           >
-            <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-[11px] bg-brand-600 shadow-[0_3px_10px_rgb(98_77_223/0.22)] dark:bg-brand-400">
-              <span className="absolute left-[8px] top-[7px] h-[12px] w-[6px] rotate-[-12deg] rounded-[2px] bg-brand-200 dark:bg-brand-900" />
-              <span className="absolute bottom-[7px] right-[8px] h-[12px] w-[6px] rotate-[12deg] rounded-[2px] bg-white dark:bg-brand-950" />
-              <span className="absolute bottom-[6px] left-[14px] h-1.5 w-1.5 rounded-full bg-sky-200 dark:bg-sky-700" />
+            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-[11px] bg-white shadow-[0_3px_10px_rgb(98_77_223/0.18)] ring-1 ring-slate-200/70 dark:bg-[#11151d] dark:ring-white/[0.08]">
+              <img
+                src={APP_ICON_URL}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 object-cover"
+                aria-hidden="true"
+              />
             </span>
             <span className="text-[15px] font-semibold tracking-[-0.03em] text-brand-700 dark:text-brand-300">AfterSum</span>
           </Link>

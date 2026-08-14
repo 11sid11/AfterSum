@@ -8,14 +8,12 @@
  * Every write:
  *   - sets `createdAt` / `updatedAt`
  *   - increments `revision`
- *   - flags the row dirty for sync
  *   - supports soft delete + undo
  */
 
 import { newId } from '@shared/ids';
 import { nowISO } from '@shared/dates';
 import type { BaseEntity } from '@db/schema';
-import { markDirty } from '@sync/status';
 
 export type CreateInput<T extends BaseEntity> = Omit<
   T,
@@ -37,7 +35,6 @@ export async function repoCreate<T extends BaseEntity>(
     revision: 1,
   } as T;
   await table.add(row);
-  await markDirty();
   return row;
 }
 
@@ -61,7 +58,6 @@ export async function repoUpdate<T extends BaseEntity>(
     revision: (existing.revision ?? 0) + 1,
   };
   await table.put(next);
-  await markDirty();
   return next;
 }
 
@@ -75,7 +71,6 @@ export async function repoSoftDelete(
   const existing = await table.get(id);
   if (!existing) return;
   await table.put({ ...existing, deletedAt: now, updatedAt: now, revision: (existing.revision ?? 0) + 1 });
-  await markDirty();
 }
 
 /** Restore a soft-deleted row (used by Undo). */
@@ -90,7 +85,6 @@ export async function repoRestore(
   const { deletedAt: _deletedAt, ...rest } = existing;
   void _deletedAt;
   await table.put({ ...rest, updatedAt: now, revision: (existing.revision ?? 0) + 1 });
-  await markDirty();
 }
 
 /** Hard-delete (used by wipe / restore from backup). */

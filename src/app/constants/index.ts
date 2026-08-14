@@ -2,7 +2,6 @@
  * App-level constants.
  */
 
-export const APP_NAME = 'Finance Utility';
 export const APP_VERSION = '0.1.0';
 export const SCHEMA_VERSION = 1;
 

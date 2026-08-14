@@ -1,8 +1,5 @@
 /**
- * Picker (CategoryPicker, PersonPicker, PaymentMethodPicker, CurrencyPicker).
- *
- * Thin wrappers around shared controls that read live data from Dexie
- * via `useLiveQuery`. They are used in forms for Track / Split / Lend.
+ * Picker controls backed by local app data.
  */
 
 import { useMemo, useState } from 'react';
@@ -38,8 +35,8 @@ export function CategoryPicker({
     async () => {
       const all = await getDB().trackCategories.toArray();
       return all
-        .filter((c) => !c.deletedAt && (includeArchived || !c.archived))
-        .filter((c) => (type ? c.type === type : true))
+        .filter((category) => !category.deletedAt && (includeArchived || !category.archived))
+        .filter((category) => (type ? category.type === type : true))
         .sort((a, b) => a.name.localeCompare(b.name));
     },
     [type, includeArchived],
@@ -49,56 +46,10 @@ export function CategoryPicker({
       name="category"
       label={label}
       value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || undefined)}
+      onChange={(event) => onChange(event.target.value || undefined)}
       options={[
         ...(allowEmpty ? [{ value: '', label: '—' }] : []),
-        ...(categories ?? []).map((c) => ({ value: c.id, label: c.name })),
-      ]}
-      error={error}
-    />
-  );
-}
-
-export function PersonPicker({
-  value,
-  onChange,
-  label = 'Person',
-  error,
-  excludeSelf,
-  includeAll = false,
-  allLabel = 'Anyone',
-}: {
-  value?: string;
-  onChange: (id: string | undefined) => void;
-  label?: string;
-  error?: string;
-  excludeSelf?: boolean;
-  includeAll?: boolean;
-  allLabel?: string;
-}) {
-  const people = useLiveQuery(
-    async () => {
-      const all = await getDB().people.toArray();
-      return all
-        .filter((p) => !p.deletedAt)
-        .filter((p) => (excludeSelf ? !p.isSelf : true))
-        .sort((a, b) => {
-          if (a.isSelf && !b.isSelf) return -1;
-          if (b.isSelf && !a.isSelf) return 1;
-          return a.name.localeCompare(b.name);
-        });
-    },
-    [excludeSelf],
-  );
-  return (
-    <Select
-      name="person"
-      label={label}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || undefined)}
-      options={[
-        ...(includeAll ? [{ value: '', label: allLabel }] : []),
-        ...(people ?? []).map((p) => ({ value: p.id, label: p.name + (p.isSelf ? ' (me)' : '') })),
+        ...(categories ?? []).map((category) => ({ value: category.id, label: category.name })),
       ]}
       error={error}
     />
@@ -113,7 +64,7 @@ export function PaymentMethodPicker({
   allowEmpty = true,
 }: {
   value?: PaymentMethod;
-  onChange: (m: PaymentMethod | undefined) => void;
+  onChange: (method: PaymentMethod | undefined) => void;
   label?: string;
   error?: string;
   allowEmpty?: boolean;
@@ -123,7 +74,7 @@ export function PaymentMethodPicker({
       name="paymentMethod"
       label={label}
       value={value ?? ''}
-      onChange={(e) => onChange((e.target.value || undefined) as PaymentMethod | undefined)}
+      onChange={(event) => onChange((event.target.value || undefined) as PaymentMethod | undefined)}
       options={[
         ...(allowEmpty ? [{ value: '', label: '—' }] : []),
         { value: 'cash', label: 'Cash' },
@@ -143,7 +94,7 @@ export function CurrencyPicker({
   error,
 }: {
   value: CurrencyCode;
-  onChange: (c: CurrencyCode) => void;
+  onChange: (currency: CurrencyCode) => void;
   label?: string;
   error?: string;
 }) {

@@ -1,7 +1,3 @@
-/**
- * Skeleton + Spinner.
- */
-
 import clsx from 'clsx';
 
 export function Spinner({ className }: { className?: string }) {
@@ -15,8 +11,4 @@ export function Spinner({ className }: { className?: string }) {
       aria-label="Loading"
     />
   );
-}
-
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx('h-4 w-full animate-pulse rounded-md bg-slate-200 dark:bg-slate-800', className)} />;
 }

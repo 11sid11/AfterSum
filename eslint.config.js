@@ -4,6 +4,14 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
+const fastRefreshSharedExports = [
+  'makeMoney',
+  'resolveDarkMode',
+  'stringToMinor',
+  'useCelebration',
+  'useToast',
+];
+
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results'] },
   {
@@ -21,7 +29,10 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          allowExportNames: fastRefreshSharedExports,
+        },
       ],
       '@typescript-eslint/no-unused-vars': [
         'error',
