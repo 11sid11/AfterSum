@@ -186,7 +186,7 @@ export function ExpenseDetailsSheet({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold">Itemize expense</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Split individual items between different people. No image or receipt processing.</p>
+              <p className="mt-0.5 text-xs text-slate-500">Split individual items between different people.</p>
             </div>
             {!itemized ? (
               <Button size="sm" variant="secondary" onClick={enableItemization}>Itemize</Button>
