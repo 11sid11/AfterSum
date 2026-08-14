@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, ReceiptText, Settings as SettingsIcon, Users, WalletCards } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ReceiptText, Settings as SettingsIcon, Users, WalletCards } from 'lucide-react';
 import { Button, Card, Money, Spinner, useToast } from '@components/ui';
 import {
   useSplitGroup,
@@ -129,45 +129,40 @@ export function SplitGroupPage() {
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      <header className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-1">
+    <div className="space-y-5 pb-24">
+      <section className="hero-panel px-4 pb-5 pt-4 sm:px-6 sm:pb-6">
+        <div className="relative z-10">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/split' })}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/65 transition-colors hover:bg-white/[0.1] hover:text-white"
+              aria-label="Back to trips"
+            >
+              <ArrowLeft size={17} />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/split/group/$groupId/settings', params: { groupId } })}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/65 transition-colors hover:bg-white/[0.1] hover:text-white"
+              aria-label="Trip settings"
+            >
+              <SettingsIcon size={17} />
+            </button>
+          </div>
+
+          <div className="mt-5 min-w-0">
+            <span className="hero-kicker">{activeMembers.length} participant{activeMembers.length === 1 ? '' : 's'} · {group.currency}</span>
+            <h1 className="mt-3 truncate text-[2rem] font-semibold leading-none tracking-[-0.05em] text-white sm:text-[2.45rem]">{group.name}</h1>
+            {group.description && <p className="mt-2 max-w-xl text-xs leading-5 text-white/42">{group.description}</p>}
+          </div>
+
           <button
             type="button"
-            onClick={() => navigate({ to: '/split' })}
-            className="icon-button shrink-0"
-            aria-label="Back to trips"
+            onClick={() => setInsightsOpen(true)}
+            className="mt-6 grid w-full grid-cols-[1fr_1fr_0.72fr_auto] items-center gap-2 rounded-[21px] border border-white/10 bg-white/[0.055] p-3 text-left backdrop-blur transition-colors hover:bg-white/[0.08] sm:p-4"
+            aria-label="View trip insights"
           >
-            <ArrowLeft size={18} />
-          </button>
-          <div className="min-w-0 pt-1">
-            <h1 className="truncate text-xl font-semibold">{group.name}</h1>
-            <p className="truncate text-sm text-slate-500">
-              {activeMembers.length} participant{activeMembers.length === 1 ? '' : 's'} · {group.currency}
-            </p>
-            {group.description && (
-              <p className="mt-1 line-clamp-2 text-xs text-slate-400">{group.description}</p>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/split/group/$groupId/settings', params: { groupId } })}
-          className="icon-button shrink-0"
-          aria-label="Trip settings"
-        >
-          <SettingsIcon size={18} />
-        </button>
-      </header>
-
-      <button
-        type="button"
-        onClick={() => setInsightsOpen(true)}
-        className="block w-full text-left"
-        aria-label="View trip insights"
-      >
-        <Card className="surface-interactive">
-          <div className="grid grid-cols-3 gap-3">
             <TripStat
               label="Total spent"
               value={<Money value={{ amountMinor: summary.totalSpent, currency: group.currency }} hide={hideAmounts} />}
@@ -177,13 +172,13 @@ export function SplitGroupPage() {
               value={<Money value={{ amountMinor: summary.yourShare, currency: group.currency }} hide={hideAmounts} />}
             />
             <TripStat label="To settle" value={String(balanceResult.transfers.length)} accent />
-          </div>
-          <p className="mt-3 text-xs font-medium text-brand-600">View trip insights</p>
-        </Card>
-      </button>
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[0.07] text-white/40"><ArrowUpRight size={15} /></span>
+          </button>
+        </div>
+      </section>
 
       <nav
-        className="grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900"
+        className="glass-bar grid grid-cols-3 gap-1 rounded-[20px] p-1"
         aria-label="Trip sections"
       >
         {TABS.map((item) => {
@@ -196,64 +191,66 @@ export function SplitGroupPage() {
               onClick={() => setTab(item.value)}
               className={
                 selected
-                  ? 'flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-brand-600 px-2 text-xs font-semibold text-white'
-                  : 'flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  ? 'flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[15px] bg-[#17171d] px-2 text-xs font-semibold text-white shadow-soft-xs dark:bg-white dark:text-slate-950'
+                  : 'flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[15px] px-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-white'
               }
               aria-pressed={selected}
             >
-              <Icon size={16} />
+              <Icon size={15} className={selected ? 'text-brand-300 dark:text-brand-600' : undefined} />
               <span className="truncate">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      {tab === 'expenses' && (
-        <TripExpensesPanel
-          expenses={activeExpenses}
-          currency={group.currency}
-          hideAmounts={hideAmounts}
-          people={people}
-          payers={raw.payers}
-          shares={raw.shares}
-          onDelete={handleDeleteExpense}
-          onAdd={() =>
-            navigate({
-              to: '/split/group/$groupId/add',
-              params: { groupId },
-              search: { type: 'expense' },
-            })
-          }
-        />
-      )}
+      <div key={tab} className="page-enter">
+        {tab === 'expenses' && (
+          <TripExpensesPanel
+            expenses={activeExpenses}
+            currency={group.currency}
+            hideAmounts={hideAmounts}
+            people={people}
+            payers={raw.payers}
+            shares={raw.shares}
+            onDelete={handleDeleteExpense}
+            onAdd={() =>
+              navigate({
+                to: '/split/group/$groupId/add',
+                params: { groupId },
+                search: { type: 'expense' },
+              })
+            }
+          />
+        )}
 
-      {tab === 'balances' && (
-        <TripBalancesPanel
-          groupId={groupId}
-          groupName={group.name}
-          currency={group.currency}
-          people={people}
-          self={self}
-          members={activeMembers}
-          balances={balanceResult.balances}
-          transfers={balanceResult.transfers}
-          settlements={activeSettlements}
-          hideAmounts={hideAmounts}
-        />
-      )}
+        {tab === 'balances' && (
+          <TripBalancesPanel
+            groupId={groupId}
+            groupName={group.name}
+            currency={group.currency}
+            people={people}
+            self={self}
+            members={activeMembers}
+            balances={balanceResult.balances}
+            transfers={balanceResult.transfers}
+            settlements={activeSettlements}
+            hideAmounts={hideAmounts}
+          />
+        )}
 
-      {tab === 'people' && (
-        <TripPeoplePanel
-          groupId={groupId}
-          people={people}
-          self={self}
-          members={raw.members}
-          expenses={activeExpenses}
-          payers={raw.payers}
-          shares={raw.shares}
-          settlements={activeSettlements}
-        />
-      )}
+        {tab === 'people' && (
+          <TripPeoplePanel
+            groupId={groupId}
+            people={people}
+            self={self}
+            members={raw.members}
+            expenses={activeExpenses}
+            payers={raw.payers}
+            shares={raw.shares}
+            settlements={activeSettlements}
+          />
+        )}
+      </div>
 
       <TripInsightsModal
         open={insightsOpen}
@@ -273,14 +270,8 @@ export function SplitGroupPage() {
 function TripStat({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className="truncate text-[10px] uppercase tracking-wide text-slate-500 min-[380px]:text-[11px]">{label}</p>
-      <div
-        className={
-          accent
-            ? 'mt-1 truncate text-base font-semibold text-emerald-600 min-[380px]:text-lg'
-            : 'mt-1 truncate text-base font-semibold min-[380px]:text-lg'
-        }
-      >
+      <p className="truncate text-[9px] font-semibold uppercase tracking-[0.09em] text-white/35 min-[380px]:text-[10px]">{label}</p>
+      <div className={accent ? 'mt-1 truncate text-sm font-semibold text-emerald-300 min-[380px]:text-base' : 'mt-1 truncate text-sm font-semibold text-white/88 min-[380px]:text-base'}>
         {value}
       </div>
     </div>
