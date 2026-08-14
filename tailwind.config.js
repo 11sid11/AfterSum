@@ -5,30 +5,39 @@ export default {
   theme: {
     extend: {
       colors: {
-        // simple palette, finance-utility feel
         brand: {
-          50: '#f5f7ff',
-          100: '#ebeefe',
-          200: '#cfd6fb',
-          300: '#a4b3f4',
-          400: '#7388eb',
-          500: '#4a60dc',
-          600: '#3344bf',
-          700: '#283497',
-          800: '#1f2a78',
-          900: '#16215b',
+          50: '#f5f3ff',
+          100: '#ece8ff',
+          200: '#d9d2ff',
+          300: '#beb3ff',
+          400: '#9b8cff',
+          500: '#7965f6',
+          600: '#624ddf',
+          700: '#4d3abb',
+          800: '#3c2e91',
+          900: '#2f256d',
+          950: '#1b163e',
         },
       },
       fontFamily: {
         sans: [
-          'system-ui',
+          'InterVariable',
+          'Inter',
+          'ui-sans-serif',
           '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI Variable',
           'Segoe UI',
-          'Roboto',
           'Helvetica Neue',
           'Arial',
           'sans-serif',
         ],
+      },
+      boxShadow: {
+        'soft-xs': '0 1px 2px rgb(15 23 42 / 0.04)',
+        'soft-sm': '0 1px 2px rgb(15 23 42 / 0.05), 0 8px 24px rgb(15 23 42 / 0.05)',
+        'soft-md': '0 2px 5px rgb(15 23 42 / 0.06), 0 18px 45px rgb(15 23 42 / 0.08)',
+        'soft-lg': '0 4px 12px rgb(15 23 42 / 0.08), 0 28px 70px rgb(15 23 42 / 0.12)',
       },
       keyframes: {
         'fade-in': {
@@ -36,13 +45,19 @@ export default {
           to: { opacity: '1' },
         },
         'slide-up': {
-          from: { transform: 'translateY(8px)', opacity: '0' },
+          from: { transform: 'translateY(10px)', opacity: '0' },
           to: { transform: 'translateY(0)', opacity: '1' },
+        },
+        'soft-pop': {
+          '0%': { transform: 'scale(0.96)', opacity: '0' },
+          '70%': { transform: 'scale(1.015)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.15s ease-out',
-        'slide-up': 'slide-up 0.18s ease-out',
+        'fade-in': 'fade-in 180ms ease-out',
+        'slide-up': 'slide-up 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+        'soft-pop': 'soft-pop 320ms cubic-bezier(0.22, 1, 0.36, 1)',
       },
     },
   },
