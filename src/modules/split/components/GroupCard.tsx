@@ -21,7 +21,7 @@ export function GroupCard({ group, yourNet, expenseCount }: GroupCardProps) {
     <Link
       to="/split/group/$groupId"
       params={{ groupId: group.id }}
-      className="group block h-full rounded-[18px] border border-slate-200/85 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_16px_rgb(15_23_42/0.035)] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_8px_22px_rgb(15_23_42/0.06)] active:scale-[0.99] dark:border-white/[0.075] dark:bg-[#141821] dark:shadow-none dark:hover:border-white/[0.12]"
+      className="group block h-full rounded-[18px] border border-slate-200/[0.85] bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_16px_rgb(15_23_42/0.035)] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_8px_22px_rgb(15_23_42/0.06)] active:scale-[0.99] dark:border-white/[0.075] dark:bg-[#141821] dark:shadow-none dark:hover:border-white/[0.12]"
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700 dark:bg-brand-400/[0.13] dark:text-brand-200">
