@@ -37,7 +37,7 @@ export function Modal({ open, onClose, title, children, className, lockScroll = 
 
   return createPortal(
     <div
-      className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-[#090a0d]/55 backdrop-blur-[5px] sm:items-center sm:p-4"
+      className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-[#090a0d]/[0.55] backdrop-blur-[5px] sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       onMouseDown={(event) => {
@@ -50,7 +50,7 @@ export function Modal({ open, onClose, title, children, className, lockScroll = 
           className,
         )}
       >
-        <div className="sticky top-0 z-10 -mx-1 mb-5 flex items-center justify-between bg-[#fbfbfc]/94 px-1 pb-1 backdrop-blur-xl dark:bg-[#111217]/94">
+        <div className="sticky top-0 z-10 -mx-1 mb-5 flex items-center justify-between bg-[#fbfbfc]/[0.94] px-1 pb-1 backdrop-blur-xl dark:bg-[#111217]/[0.94]">
           <h2 className="min-w-0 truncate text-[19px] font-semibold tracking-[-0.03em]">{title}</h2>
           <button
             type="button"
