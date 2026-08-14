@@ -50,10 +50,10 @@ export function CategoryBreakdown({ rows, currency, totalMinor, emptyLabel = 'No
                 onClick={() => onSelectCategory(categoryId)}
                 aria-pressed={selected}
                 className={clsx(
-                  'w-full rounded-2xl px-3 py-3 text-left transition-all duration-150',
+                  'w-full rounded-2xl px-3 py-3 text-left transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.99]',
                   selected
-                    ? 'bg-brand-50 ring-1 ring-brand-200 dark:bg-brand-950/35 dark:ring-brand-800'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/55',
+                    ? 'bg-brand-50 ring-1 ring-brand-200 dark:bg-brand-950/[0.35] dark:ring-brand-800'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/[0.55]',
                 )}
               >
                 {content}
