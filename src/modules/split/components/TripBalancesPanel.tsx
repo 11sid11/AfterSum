@@ -101,10 +101,10 @@ export function TripBalancesPanel({
 
   return (
     <section className="space-y-6">
-      <Card className={transfers.length === 0 ? 'border-emerald-500/15 bg-emerald-500/[0.045]' : undefined}>
+      <Card className={transfers.length === 0 ? 'border-emerald-500/[0.15] bg-emerald-500/[0.045]' : undefined}>
         <div className="flex items-start gap-3">
           <div className={transfers.length === 0
-            ? 'mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-[15px] bg-emerald-500/12 text-emerald-600 dark:text-emerald-300'
+            ? 'mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-[15px] bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-300'
             : 'mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-[15px] bg-brand-500/10 text-brand-600 dark:text-brand-300'}>
             {transfers.length === 0 ? <CheckCircle2 size={19} /> : <WalletCards size={19} />}
           </div>
