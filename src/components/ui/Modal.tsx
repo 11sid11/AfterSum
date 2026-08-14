@@ -37,18 +37,21 @@ export function Modal({ open, onClose, title, children, className, lockScroll = 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/45 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-[#090a0d]/55 backdrop-blur-[5px] sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
         className={clsx(
-          'max-h-[calc(100dvh-0.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border border-white/40 bg-white p-5 shadow-2xl dark:border-slate-700/60 dark:bg-slate-900 sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px] sm:p-6',
+          'modal-panel max-h-[calc(100dvh-0.35rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[30px] border border-slate-900/[0.07] bg-[#fbfbfc] p-5 shadow-soft-lg dark:border-white/[0.08] dark:bg-[#111217] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[30px] sm:p-6',
           className,
         )}
       >
-        <div className="sticky top-0 z-10 -mx-1 mb-4 flex items-center justify-between bg-white/95 px-1 pb-1 backdrop-blur dark:bg-slate-900/95">
-          <h2 className="min-w-0 truncate text-lg font-semibold tracking-tight">{title}</h2>
+        <div className="sticky top-0 z-10 -mx-1 mb-5 flex items-center justify-between bg-[#fbfbfc]/94 px-1 pb-1 backdrop-blur-xl dark:bg-[#111217]/94">
+          <h2 className="min-w-0 truncate text-[19px] font-semibold tracking-[-0.03em]">{title}</h2>
           <button
             type="button"
             onClick={onClose}
