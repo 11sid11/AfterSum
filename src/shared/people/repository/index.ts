@@ -19,13 +19,14 @@ import { nowISO } from '@shared/dates';
 import type { Person } from '@db/schema';
 
 function clean(input: Partial<PersonInput>): Partial<PersonInput> {
-  return {
+  const cleaned: Partial<PersonInput> = {
     ...input,
-    name: input.name === undefined ? undefined : normalizePersonName(input.name),
     phone: input.phone || undefined,
     email: input.email || undefined,
     note: input.note || undefined,
   };
+  if (input.name !== undefined) cleaned.name = normalizePersonName(input.name);
+  return cleaned;
 }
 
 async function assertUniqueActiveName(name: string, exceptId?: string): Promise<void> {
