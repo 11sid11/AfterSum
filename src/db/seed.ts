@@ -12,7 +12,7 @@
  */
 
 import { getDB } from './database';
-import { newId, prefixedId } from '@shared/ids';
+import { prefixedId } from '@shared/ids';
 import { nowISO } from '@shared/dates';
 import type { AppSettings, Person, TrackCategory } from './schema';
 
@@ -94,5 +94,3 @@ export async function ensureFirstLaunch(): Promise<void> {
     await db.trackCategories.bulkPut(categories);
   });
 }
-
-export { newId, prefixedId };
