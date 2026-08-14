@@ -38,7 +38,7 @@ export function formatMoney(money: Money, locale?: string): string {
 export function parseMoney(input: string, currency: CurrencyCode): Money {
   const cleaned = input
     .replace(/[\s,]/g, '')
-    .replace(/[^0-9.\-]/g, '');
+    .replace(/[^0-9.-]/g, '');
   if (cleaned === '' || cleaned === '-' || cleaned === '.') {
     throw new Error('parseMoney: empty amount');
   }
