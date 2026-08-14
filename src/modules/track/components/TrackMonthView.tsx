@@ -121,7 +121,7 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
             <button
               type="button"
               onClick={() => navigate({ to: '/track/budget', search: { month } })}
-              className="min-h-[92px] rounded-[15px] border border-dashed border-slate-300 bg-white/55 px-3.5 text-left transition-colors hover:bg-white dark:border-white/[0.12] dark:bg-white/[0.025] dark:hover:bg-white/[0.05]"
+              className="min-h-[92px] rounded-[15px] border border-dashed border-slate-300 bg-white/[0.55] px-3.5 text-left transition-colors hover:bg-white dark:border-white/[0.12] dark:bg-white/[0.025] dark:hover:bg-white/[0.05]"
             >
               <p className="text-sm font-semibold">Set a monthly budget</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">Optional spending guardrail.</p>
@@ -147,7 +147,7 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
               </button>
             ))}
           </div>
-          <label className="flex min-h-10 min-w-0 items-center gap-2 rounded-[13px] border border-slate-200/85 bg-white px-3.5 text-sm shadow-[0_1px_2px_rgb(15_23_42/0.025)] focus-within:border-brand-400 focus-within:ring-3 focus-within:ring-brand-500/[0.08] dark:border-white/[0.075] dark:bg-[#141821]">
+          <label className="flex min-h-10 min-w-0 items-center gap-2 rounded-[13px] border border-slate-200/[0.85] bg-white px-3.5 text-sm shadow-[0_1px_2px_rgb(15_23_42/0.025)] focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/[0.08] dark:border-white/[0.075] dark:bg-[#141821]">
             <Search size={15} className="shrink-0 text-slate-400" />
             <input type="search" placeholder="Search transactions…" value={text} onChange={(event) => setText(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400" aria-label="Search Track transactions" />
           </label>
