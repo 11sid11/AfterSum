@@ -36,8 +36,11 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
     setBusy(true);
     try {
       const result = await executeSplitCsvImport(groupId, preview);
+      const duplicateNote = result.skippedDuplicates
+        ? ` ${result.skippedDuplicates} already-imported ${result.skippedDuplicates === 1 ? 'row was' : 'rows were'} skipped.`
+        : '';
       toast.show(
-        `Imported ${result.imported} expense${result.imported === 1 ? '' : 's'}${result.peopleAdded ? ` and added ${result.peopleAdded} new ${result.peopleAdded === 1 ? 'person' : 'people'}` : ''}.`,
+        `Imported ${result.imported} expense${result.imported === 1 ? '' : 's'}${result.peopleAdded ? ` and added ${result.peopleAdded} new ${result.peopleAdded === 1 ? 'person' : 'people'}` : ''}.${duplicateNote}`,
         { variant: 'success' },
       );
       setPreview(undefined);
@@ -97,7 +100,9 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
               </ul>
             </details>
           )}
-          <p className="text-xs text-slate-400">Importing the same file twice can create duplicate expenses, so review the preview before continuing.</p>
+          <p className="text-xs text-slate-400">
+            Re-importing the same CSV is safe: rows AfterSum already imported from that file are skipped.
+          </p>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="ghost" onClick={() => { setPreview(undefined); setFilename(''); }}>Choose another</Button>
             <Button disabled={busy} onClick={() => void runImport()}>{busy ? 'Importing…' : `Import ${preview.rows.length}`}</Button>
