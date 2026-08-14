@@ -54,7 +54,7 @@ export function SplitPage() {
         <Button onClick={() => setCreateOpen(true)} size="sm" disabled={!ready} className="shrink-0"><Plus size={15} /> New trip</Button>
       </header>
 
-      <section className="rounded-[28px] border border-slate-900/[0.06] bg-white/72 px-4 py-4 shadow-soft-xs backdrop-blur-xl dark:border-white/[0.07] dark:bg-white/[0.035] sm:px-5">
+      <section className="rounded-[28px] border border-slate-900/[0.06] bg-white/[0.72] px-4 py-4 shadow-soft-xs backdrop-blur-xl dark:border-white/[0.07] dark:bg-white/[0.035] sm:px-5">
         <div className="flex items-center gap-4">
           <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-[17px] bg-[#1b1830] text-brand-200 shadow-soft-xs dark:bg-brand-300 dark:text-brand-950">
             <Users size={19} />
