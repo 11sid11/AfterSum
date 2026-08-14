@@ -5,7 +5,6 @@
 import { getDB } from '@db/database';
 import { nowISO } from '@shared/dates';
 import type { AppSettings, AppTheme } from '@db/schema';
-import { markDirty } from '@sync/status';
 
 export const DEFAULT_SETTINGS: Omit<AppSettings, 'createdAt' | 'updatedAt' | 'revision'> = {
   id: 'app',
@@ -15,7 +14,7 @@ export const DEFAULT_SETTINGS: Omit<AppSettings, 'createdAt' | 'updatedAt' | 're
   onboardingComplete: false,
 };
 
-async function writeWithoutDirty(patch: Partial<AppSettings>): Promise<AppSettings> {
+async function writeSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   const db = getDB();
   const cur = await settingsRepository.get();
   const now = nowISO();
@@ -47,9 +46,7 @@ export const settingsRepository = {
   },
 
   async update(patch: Partial<AppSettings>): Promise<AppSettings> {
-    const next = await writeWithoutDirty(patch);
-    await markDirty();
-    return next;
+    return writeSettings(patch);
   },
 
   async setDefaultCurrency(currency: string): Promise<AppSettings> {
@@ -82,8 +79,7 @@ export const settingsRepository = {
     return settingsRepository.update({ onboardingComplete: complete });
   },
 
-  /** Device metadata only; recording a backup does not change financial data. */
   async setLastPortableBackupAt(timestamp: string): Promise<AppSettings> {
-    return writeWithoutDirty({ lastPortableBackupAt: timestamp });
+    return writeSettings({ lastPortableBackupAt: timestamp });
   },
 };
