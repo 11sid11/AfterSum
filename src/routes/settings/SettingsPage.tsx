@@ -97,7 +97,7 @@ export function SettingsPage() {
           <div className="border-t border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-5">
             <p className="text-sm font-semibold">Main currency</p>
             {hasFinancialData ? (
-              <div className="mt-2 rounded-2xl bg-slate-50 px-3.5 py-3 dark:bg-slate-800/55">
+              <div className="mt-2 rounded-2xl bg-slate-50 px-3.5 py-3 dark:bg-slate-800/[0.55]">
                 <p className="text-sm font-semibold">{settings.defaultCurrency}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">Locked after financial data is recorded so historical amounts are never relabelled.</p>
               </div>
@@ -123,7 +123,7 @@ export function SettingsPage() {
         <Card padded={false} className="overflow-hidden">
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             <li>
-              <Link to="/settings/people" className="group flex min-h-16 items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/45 sm:px-5">
+              <Link to="/settings/people" className="group flex min-h-16 items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/[0.45] sm:px-5">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><Users size={18} /></div>
                   <div className="min-w-0"><p className="text-sm font-semibold">People</p><p className="mt-0.5 text-xs text-slate-500">{stats?.people ?? '…'} people</p></div>
@@ -132,7 +132,7 @@ export function SettingsPage() {
               </Link>
             </li>
             <li>
-              <Link to="/settings/backup" className="group flex min-h-16 items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/45 sm:px-5">
+              <Link to="/settings/backup" className="group flex min-h-16 items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/[0.45] sm:px-5">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"><Database size={18} /></div>
                   <div className="min-w-0"><p className="text-sm font-semibold">Data &amp; Storage</p><p className="mt-0.5 truncate text-xs text-slate-500">Persistence, recovery, backups and exports</p></div>
