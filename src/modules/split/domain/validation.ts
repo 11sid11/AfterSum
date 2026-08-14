@@ -76,6 +76,7 @@ export const SplitRecurringTemplateSchema = z.object({
   allocation: SplitAllocationSnapshotSchema.optional(),
   note: z.string().max(1000).optional().or(z.literal('')),
   frequency: z.enum(['weekly', 'monthly', 'yearly']),
+  anchorDate: dateOnly,
   nextDate: dateOnly,
   enabled: z.boolean(),
   originalCurrency: currencyCode.optional(),
@@ -133,6 +134,7 @@ const SplitExpenseBaseSchema = z.object({
   items: z.array(SplitItemSchema).optional(),
   recurrenceTemplateId: z.string().min(1).optional(),
   recurrenceOccurrenceDate: dateOnly.optional(),
+  importSourceKey: z.string().min(1).max(160).optional(),
 });
 
 export const SplitPayerInputSchema = z.object({
