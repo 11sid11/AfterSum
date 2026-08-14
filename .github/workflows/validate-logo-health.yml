@@ -1,0 +1,42 @@
+name: Validate logo and code health
+
+on:
+  push:
+    branches: [agent/logo-and-code-health-pass]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          VITE_BASE_PATH: /AfterSum/
+      - name: Verify branding assets and stale sync imports
+        run: |
+          test -f public/favicon-64.png
+          test -f public/apple-touch-icon.png
+          test -f public/pwa-192x192.png
+          test -f public/pwa-512x512.png
+          test -f public/pwa-maskable-512x512.png
+          if grep -R "@sync/" -n src vite.config.ts tsconfig.app.json; then
+            echo "Found stale @sync import or alias"
+            exit 1
+          fi
+      - name: Dead-code advisory
+        continue-on-error: true
+        run: pnpm dlx knip@5 --reporter compact
