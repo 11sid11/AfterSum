@@ -33,6 +33,12 @@ const CURRENCY_CODES = [
   'YER', 'ZAR', 'ZMW', 'ZWL',
 ] as const;
 
+/** Put high-frequency choices first; the rest stay alphabetic. */
+const COMMON_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'JPY', 'AUD', 'CAD'] as const;
+const commonCurrencyRank = new Map<string, number>(
+  COMMON_CURRENCIES.map((code, index) => [code, index]),
+);
+
 function currencyLabel(code: string): string {
   try {
     if (typeof Intl.DisplayNames === 'function') {
@@ -63,7 +69,16 @@ export const CURRENCY_OPTIONS: Array<{ code: string; label: string; symbol: stri
     code,
     label: currencyLabel(code),
     symbol: currencySymbol(code),
-  }));
+  })).sort((a, b) => {
+    const aRank = commonCurrencyRank.get(a.code);
+    const bRank = commonCurrencyRank.get(b.code);
+    if (aRank !== undefined || bRank !== undefined) {
+      if (aRank === undefined) return 1;
+      if (bRank === undefined) return -1;
+      return aRank - bRank;
+    }
+    return a.code.localeCompare(b.code);
+  });
 
 /** Number of milliseconds for a typical "undo" window. */
 export const UNDO_TIMEOUT_MS = 5000;
