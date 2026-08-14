@@ -159,13 +159,16 @@ export function itemizedAllocation(items: SplitItem[]): {
 
 /**
  * Advance a date-only recurrence without JavaScript's end-of-month overflow.
- * Jan 31 monthly becomes Feb 28/29, and Feb 29 yearly becomes Feb 28 on
- * non-leap years. The function stays local-time/date-only so timezone offsets
- * never move an occurrence to the previous or next calendar day.
+ * `anchorDate` preserves the original day-of-month/year intent after a clamp.
  */
-export function nextRecurringDate(dateOnly: string, frequency: SplitRecurringFrequency): string {
-  const [year, month, day] = dateOnly.split('-').map(Number);
-  if (!year || !month || !day) throw new Error(`Invalid recurring date: ${dateOnly}`);
+export function nextRecurringDate(
+  dateOnly: string,
+  frequency: SplitRecurringFrequency,
+  anchorDate: string = dateOnly,
+): string {
+  const [year, month, day] = parseDateOnly(dateOnly);
+  const [anchorYear, anchorMonth, anchorDay] = parseDateOnly(anchorDate);
+  void anchorYear;
 
   if (frequency === 'weekly') {
     const date = new Date(year, month - 1, day);
@@ -173,17 +176,32 @@ export function nextRecurringDate(dateOnly: string, frequency: SplitRecurringFre
     return localDateOnly(date);
   }
 
-  const targetYear = frequency === 'yearly' ? year + 1 : month === 12 ? year + 1 : year;
-  const targetMonth = frequency === 'monthly' ? (month === 12 ? 1 : month + 1) : month;
-  const clampedDay = Math.min(day, daysInMonth(targetYear, targetMonth));
-  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+  if (frequency === 'monthly') {
+    const targetYear = month === 12 ? year + 1 : year;
+    const targetMonth = month === 12 ? 1 : month + 1;
+    const clampedDay = Math.min(anchorDay, daysInMonth(targetYear, targetMonth));
+    return formatDateOnly(targetYear, targetMonth, clampedDay);
+  }
+
+  const targetYear = year + 1;
+  const clampedDay = Math.min(anchorDay, daysInMonth(targetYear, anchorMonth));
+  return formatDateOnly(targetYear, anchorMonth, clampedDay);
 }
 
 export function localDateOnly(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return formatDateOnly(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+function parseDateOnly(value: string): [number, number, number] {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day || month < 1 || month > 12 || day > daysInMonth(year, month)) {
+    throw new Error(`Invalid recurring date: ${value}`);
+  }
+  return [year, month, day];
+}
+
+function formatDateOnly(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function daysInMonth(year: number, month: number): number {
