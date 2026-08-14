@@ -72,12 +72,18 @@ describe('nextRecurringDate', () => {
     expect(nextRecurringDate('2026-08-14', 'weekly')).toBe('2026-08-21');
   });
 
-  it('clamps monthly end-of-month dates instead of overflowing into another month', () => {
-    expect(nextRecurringDate('2026-01-31', 'monthly')).toBe('2026-02-28');
-    expect(nextRecurringDate('2028-01-31', 'monthly')).toBe('2028-02-29');
+  it('preserves the original monthly day after an end-of-month clamp', () => {
+    const anchor = '2026-01-31';
+    const february = nextRecurringDate(anchor, 'monthly', anchor);
+    const march = nextRecurringDate(february, 'monthly', anchor);
+    expect(february).toBe('2026-02-28');
+    expect(march).toBe('2026-03-31');
   });
 
-  it('clamps leap day for yearly recurrence', () => {
-    expect(nextRecurringDate('2028-02-29', 'yearly')).toBe('2029-02-28');
+  it('preserves a leap-day yearly anchor', () => {
+    const anchor = '2028-02-29';
+    const next = nextRecurringDate(anchor, 'yearly', anchor);
+    expect(next).toBe('2029-02-28');
+    expect(nextRecurringDate('2031-02-28', 'yearly', anchor)).toBe('2032-02-29');
   });
 });
