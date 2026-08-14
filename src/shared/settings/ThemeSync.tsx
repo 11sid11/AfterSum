@@ -12,9 +12,10 @@ export function resolveDarkMode(theme: AppTheme, systemPrefersDark: boolean): bo
  */
 export function ThemeSync() {
   const settings = useAppSettings();
+  const theme = settings?.theme;
 
   useEffect(() => {
-    if (!settings || typeof document === 'undefined') return;
+    if (!theme || typeof document === 'undefined') return;
 
     const media =
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -22,7 +23,7 @@ export function ThemeSync() {
         : null;
 
     const apply = () => {
-      const dark = resolveDarkMode(settings.theme, media?.matches ?? false);
+      const dark = resolveDarkMode(theme, media?.matches ?? false);
       const root = document.documentElement;
       root.classList.toggle('dark', dark);
       root.style.colorScheme = dark ? 'dark' : 'light';
@@ -30,11 +31,11 @@ export function ThemeSync() {
 
     apply();
 
-    if (settings.theme !== 'system' || !media) return;
+    if (theme !== 'system' || !media) return;
 
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
-  }, [settings?.theme]);
+  }, [theme]);
 
   return null;
 }
