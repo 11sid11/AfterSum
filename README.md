@@ -62,14 +62,15 @@ src/
   app/         router, providers, layout
   backup/      local recovery + portable backup helpers
   routes/      app screens
-  db/          Dexie schema, migrations, transaction helper
+  db/          Dexie schema, compatibility tables, transaction helper
   shared/      people, money, dates, ids, validation, settings
   modules/     track/, split/, lend/
   overview/    read-only projections, queries, adapters
-  sync/        legacy local change metadata kept for repository compatibility
   export/      csv, json, zip
   components/  ui primitives
   tests/       unit + e2e
 ```
 
-See `work.md` for the original implementation specification.
+The original `work.md` remains as a historical implementation specification.
+The current README and application code are the source of truth for the shipped
+local-first architecture.
