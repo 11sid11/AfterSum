@@ -58,7 +58,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f7f8fc] text-slate-950 dark:bg-[#0b0e14] dark:text-slate-100">
       <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-[#f7f8fc]/95 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#0b0e14]/95 sm:border-0 sm:bg-transparent sm:px-5 sm:pt-4 dark:sm:bg-transparent">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:h-[58px] sm:rounded-[18px] sm:border sm:border-slate-200/80 sm:bg-white/92 sm:px-2.5 sm:shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_18px_rgb(15_23_42/0.035)] sm:backdrop-blur-xl dark:sm:border-white/[0.075] dark:sm:bg-[#141821]/92 dark:sm:shadow-none">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:h-[58px] sm:rounded-[18px] sm:border sm:border-slate-200/80 sm:bg-white/[0.92] sm:px-2.5 sm:shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_18px_rgb(15_23_42/0.035)] sm:backdrop-blur-xl dark:sm:border-white/[0.075] dark:sm:bg-[#141821]/[0.92] dark:sm:shadow-none">
           <Link
             to="/overview"
             className="group flex shrink-0 items-center gap-2.5 rounded-xl px-1 py-1"
@@ -87,7 +87,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
                     'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98]',
                     active
                       ? 'bg-brand-50 text-brand-700 dark:bg-brand-400/[0.13] dark:text-brand-200'
-                      : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-white',
+                      : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.055] dark:hover:text-white',
                   )}
                 >
                   <Icon size={15} />
@@ -136,7 +136,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
       )}
 
       <nav className="mobile-nav-safe fixed inset-x-0 bottom-0 z-30 sm:hidden" aria-label="Primary navigation">
-        <div className="mx-auto grid max-w-md grid-cols-4 rounded-t-[20px] border border-b-0 border-slate-200/85 bg-white/96 px-2 pt-1.5 shadow-[0_-8px_28px_rgb(15_23_42/0.055)] backdrop-blur-xl dark:border-white/[0.075] dark:bg-[#141821]/96 dark:shadow-none">
+        <div className="mx-auto grid max-w-md grid-cols-4 rounded-t-[20px] border border-b-0 border-slate-200/[0.85] bg-white/[0.96] px-2 pt-1.5 shadow-[0_-8px_28px_rgb(15_23_42/0.055)] backdrop-blur-xl dark:border-white/[0.075] dark:bg-[#141821]/[0.96] dark:shadow-none">
           {NAV.map((item) => {
             const active = isActivePath(currentPath, item.to);
             const Icon = item.icon;
