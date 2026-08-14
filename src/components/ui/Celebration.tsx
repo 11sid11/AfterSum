@@ -50,7 +50,7 @@ const PARTICLES = [
 export function CelebrationProvider({ children }: { children: ReactNode }) {
   const [event, setEvent] = useState<CelebrationEvent | null>(null);
   const nextId = useRef(1);
-  const timeout = useRef<number | undefined>();
+  const timeout = useRef<number | undefined>(undefined);
 
   useEffect(() => () => {
     if (timeout.current !== undefined) window.clearTimeout(timeout.current);
