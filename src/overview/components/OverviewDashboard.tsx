@@ -5,13 +5,11 @@ import { Card, Money, EmptyState, Spinner } from '@components/ui';
 import { useOverviewSummary, useGlobalActivity } from '../queries';
 import { toMonthKey, fromMonthKey, formatHumanDate } from '@shared/dates';
 import {
-  ArrowUpRight,
   ChevronRight,
   HandCoins,
   Receipt,
   TrendingUp,
   Users,
-  WalletCards,
 } from 'lucide-react';
 import { useAppSettings } from '@shared/settings/useSettings';
 import type { ActivityItem } from '../projections/types';
@@ -21,69 +19,62 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
   const activity = useGlobalActivity(8);
   const settings = useAppSettings();
   if (!summary || !settings) return <Spinner />;
+
   const hide = settings.hideAmounts;
+  const spending = summary.personalSpending;
+  const total = Math.max(0, spending.totalMinor);
+  const trackPct = total > 0 ? Math.min(100, Math.max(0, (spending.trackMinor / total) * 100)) : 50;
+  const splitPct = Math.max(0, 100 - trackPct);
 
   return (
     <div className="space-y-8">
-      <header className="flex items-end justify-between gap-4">
-        <div>
-          <span className="module-chip mb-3"><span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> {monthHeading(month)}</span>
-          <h1 className="page-title">Your money, in one glance.</h1>
-          <p className="page-subtitle">Track, trips and personal IOUs stay separate. This screen only brings the signal together.</p>
+      <section className="pt-1 sm:pt-2">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 dark:text-slate-400">
+          {monthHeading(month)}
+        </p>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h1 className="text-[2.75rem] font-semibold leading-none tracking-[-0.055em] tabular-nums text-slate-950 dark:text-white sm:text-[3.55rem]">
+            <Money value={{ amountMinor: spending.totalMinor, currency: spending.currency }} hide={hide} emphasize />
+          </h1>
+          <span className="text-xs text-slate-500">personal spending</span>
         </div>
-      </header>
+        <p className="mt-2 max-w-xl text-xs leading-5 text-slate-500 dark:text-slate-400">
+          Your Track expenses plus your share of active Split expenses. Lend stays separate.
+        </p>
 
-      <section className="hero-panel px-5 py-5 sm:px-7 sm:py-7">
-        <div className="relative z-10">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="hero-kicker"><WalletCards size={12} /> Personal spending</span>
-              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.12em] text-white/[0.45]">This month</p>
-            </div>
-            <Link
-              to="/track"
-              className="grid h-10 w-10 place-items-center rounded-[15px] border border-white/10 bg-white/[0.07] text-white/70 transition-[background-color,color,transform] duration-200 hover:-translate-y-px hover:bg-white/[0.11] hover:text-white"
-              aria-label="Open Track"
-            >
-              <ArrowUpRight size={17} />
-            </Link>
+        <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-white/[0.08]" aria-label="Personal spending breakdown">
+          <div className="flex h-full w-full">
+            <div className="h-full bg-[#a54431] transition-[width] duration-500" style={{ width: `${trackPct}%` }} />
+            <div className="h-full bg-brand-600 transition-[width] duration-500 dark:bg-brand-400" style={{ width: `${splitPct}%` }} />
           </div>
+        </div>
 
-          <p className="mt-2 text-[2.55rem] font-semibold leading-none tracking-[-0.055em] tabular-nums sm:text-[3.4rem]">
-            <Money
-              value={{ amountMinor: summary.personalSpending.totalMinor, currency: summary.personalSpending.currency }}
-              hide={hide}
-              emphasize
-            />
-          </p>
-          <p className="mt-3 max-w-lg text-xs leading-5 text-white/[0.48]">Your own Track expenses plus your share of active Split expenses.</p>
-
-          <div className="mt-6 grid gap-2 sm:grid-cols-2">
-            <HeroBreakdown
+        <Card className="mt-3" padded={false}>
+          <div className="grid grid-cols-2 divide-x divide-slate-200/80 dark:divide-white/[0.075]">
+            <SpendingBreakdown
               to="/track"
-              icon={<Receipt size={15} />}
-              label="Track spending"
-              amount={<Money value={{ amountMinor: summary.personalSpending.trackMinor, currency: summary.personalSpending.currency }} hide={hide} />}
+              dotClass="bg-[#a54431]"
+              label="Track"
+              amount={<Money value={{ amountMinor: spending.trackMinor, currency: spending.currency }} hide={hide} />}
             />
-            <HeroBreakdown
+            <SpendingBreakdown
               to="/split"
-              icon={<Users size={15} />}
-              label="Trip shares"
-              amount={<Money value={{ amountMinor: summary.personalSpending.splitShareMinor, currency: summary.personalSpending.currency }} hide={hide} />}
+              dotClass="bg-brand-600 dark:bg-brand-400"
+              label="Split"
+              amount={<Money value={{ amountMinor: spending.splitShareMinor, currency: spending.currency }} hide={hide} />}
             />
           </div>
-        </div>
+        </Card>
       </section>
 
       <section>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
-            <h2 className="section-title">Money in motion</h2>
-            <p className="mt-1 text-xs text-slate-400">What still needs to come back or go out.</p>
+            <h2 className="text-sm font-semibold tracking-[-0.02em]">Money in motion</h2>
+            <p className="mt-1 text-xs text-slate-500">Outstanding balances, kept separate by module.</p>
           </div>
-          <span className="text-[11px] font-medium text-slate-400">Live balances</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0">
           <PositionCard
             to="/split"
             icon={<Users size={18} />}
@@ -112,8 +103,8 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
       <section>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
-            <h2 className="section-title">Recent activity</h2>
-            <p className="mt-1 text-xs text-slate-400">A neutral timeline across modules.</p>
+            <h2 className="text-sm font-semibold tracking-[-0.02em]">Recent activity</h2>
+            <p className="mt-1 text-xs text-slate-500">A neutral timeline across Track, Split and Lend.</p>
           </div>
         </div>
         {activity === undefined ? (
@@ -124,7 +115,7 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
           </Card>
         ) : (
           <Card padded={false} className="overflow-hidden">
-            <ul className="stagger-list divide-y divide-slate-900/[0.055] dark:divide-white/[0.07]">
+            <ul className="stagger-list divide-y divide-slate-200/75 dark:divide-white/[0.07]">
               {activity.map((item) => (
                 <ActivityRow key={item.id} item={item} hide={hide} />
               ))}
@@ -136,28 +127,25 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
   );
 }
 
-function HeroBreakdown({
+function SpendingBreakdown({
   to,
-  icon,
+  dotClass,
   label,
   amount,
 }: {
   to: '/track' | '/split';
-  icon: React.ReactNode;
+  dotClass: string;
   label: string;
   amount: React.ReactNode;
 }) {
   return (
-    <Link
-      to={to}
-      className="group flex min-w-0 items-center gap-3 rounded-[19px] border border-white/10 bg-white/[0.065] px-3.5 py-3 backdrop-blur transition-[background-color,transform] duration-200 hover:-translate-y-px hover:bg-white/[0.095]"
-    >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.08] text-white/[0.68]">{icon}</span>
+    <Link to={to} className="group flex min-w-0 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.035] sm:px-5">
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`} />
       <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40">{label}</span>
-        <span className="mt-0.5 block truncate text-sm font-semibold tabular-nums text-white/90">{amount}</span>
+        <span className="block text-[11px] text-slate-500">{label}</span>
+        <span className="mt-0.5 block truncate text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">{amount}</span>
       </span>
-      <ChevronRight size={15} className="text-white/25 transition-transform duration-200 group-hover:translate-x-0.5" />
+      <ChevronRight size={14} className="shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 dark:text-slate-600" />
     </Link>
   );
 }
@@ -184,33 +172,36 @@ function PositionCard({
   accent: 'brand' | 'emerald';
 }) {
   const accentClass = accent === 'brand'
-    ? 'bg-brand-500/10 text-brand-600 dark:text-brand-300'
-    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300';
+    ? 'bg-brand-100 text-brand-700 dark:bg-brand-400/[0.14] dark:text-brand-200'
+    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/[0.13] dark:text-emerald-200';
 
   return (
-    <Link to={to} className="group block">
-      <Card className="surface-lift h-full">
+    <Link to={to} className="group min-w-[258px] snap-center sm:min-w-0">
+      <Card className="h-full transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_8px_22px_rgb(15_23_42/0.055)] dark:hover:border-white/[0.11] dark:hover:shadow-none">
         <div className="flex items-start justify-between gap-3">
-          <div className={`grid h-10 w-10 place-items-center rounded-[15px] ${accentClass}`}>{icon}</div>
-          <ChevronRight size={16} className="text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 dark:text-slate-600" />
+          <div className={`grid h-10 w-10 place-items-center rounded-full ${accentClass}`}>{icon}</div>
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-white/[0.055] dark:text-slate-400">
+            {title}
+          </span>
         </div>
-        <div className="mt-4">
-          <p className="text-[15px] font-semibold tracking-[-0.02em]">{title}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <div className="rounded-[17px] bg-emerald-500/[0.075] px-3 py-2.5 dark:bg-emerald-400/[0.07]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-emerald-700/[0.65] dark:text-emerald-300/[0.65]">Receive</p>
-            <p className="mt-1 truncate text-[15px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+        <p className="mt-4 text-xs text-slate-500">{description}</p>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-[10px] text-slate-500">To receive</p>
+            <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
               <Money value={{ amountMinor: receiveMinor, currency }} hide={hide} emphasize />
             </p>
           </div>
-          <div className="rounded-[17px] bg-rose-500/[0.07] px-3 py-2.5 dark:bg-rose-400/[0.065]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-rose-700/60 dark:text-rose-300/[0.65]">Owe</p>
-            <p className="mt-1 truncate text-[15px] font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+          <div className="text-right">
+            <p className="text-[10px] text-slate-500">You owe</p>
+            <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-rose-700 dark:text-rose-300">
               <Money value={{ amountMinor: oweMinor, currency }} hide={hide} />
             </p>
           </div>
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-200/70 pt-3 text-[11px] text-slate-500 dark:border-white/[0.07]">
+          <span>{receiveMinor === 0 && oweMinor === 0 ? 'All settled' : 'Open balances'}</span>
+          <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
         </div>
       </Card>
     </Link>
@@ -221,15 +212,15 @@ function ActivityRow({ item, hide }: { item: ActivityItem; hide: boolean }) {
   const icon = item.module === 'track' ? <Receipt size={15} /> : item.module === 'split' ? <Users size={15} /> : <HandCoins size={15} />;
   const destination = item.module === 'track' ? `/track/transaction/${item.sourceEntityId}` : item.module === 'split' ? '/split' : '/lend';
   const iconClass = item.module === 'track'
-    ? 'bg-rose-500/[0.08] text-rose-600 dark:text-rose-300'
+    ? 'bg-[#fff0eb] text-[#a54431] dark:bg-rose-400/[0.09] dark:text-rose-300'
     : item.module === 'split'
-      ? 'bg-brand-500/[0.09] text-brand-600 dark:text-brand-300'
-      : 'bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-300';
+      ? 'bg-brand-100 text-brand-700 dark:bg-brand-400/[0.11] dark:text-brand-200'
+      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/[0.1] dark:text-emerald-200';
 
   return (
     <li>
-      <Link to={destination} className="interactive-row group flex min-w-0 items-center gap-3 px-4 py-3.5 sm:px-5">
-        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-[13px] ${iconClass}`}>{icon}</div>
+      <Link to={destination} className="group flex min-w-0 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.035] sm:px-5">
+        <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${iconClass}`}>{icon}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium tracking-[-0.01em] text-slate-900 dark:text-slate-100">{item.title}</p>
           <p className="mt-0.5 truncate text-[11px] text-slate-500">
