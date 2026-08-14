@@ -21,6 +21,22 @@ export const PersonSchema = z.object({
 export type PersonInput = z.infer<typeof PersonSchema>;
 
 /**
+ * Canonical display form for a person's name.
+ *
+ * We deliberately keep this small and predictable: Unicode compatibility
+ * normalization, trimmed edges, and collapsed internal whitespace. The
+ * normalized display value is what repositories persist.
+ */
+export function normalizePersonName(value: string): string {
+  return value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+}
+
+/** Case-insensitive identity key used only for uniqueness comparisons. */
+export function personNameKey(value: string): string {
+  return normalizePersonName(value).toLocaleLowerCase();
+}
+
+/**
  * Make sure that exactly one Person in the set is the
  * "self" user. Used to enforce invariant in repositories.
  */

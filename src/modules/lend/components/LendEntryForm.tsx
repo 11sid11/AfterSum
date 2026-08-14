@@ -6,12 +6,12 @@ import {
   Card,
   DateInput,
   MoneyInput,
-  PersonPicker,
   Spinner,
   Textarea,
   useCelebration,
   useToast,
 } from '@components/ui';
+import { PersonField } from '@shared/people/components/PersonField';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
 import { lendEntryRepository } from '../repositories/lendEntryRepository';
@@ -167,7 +167,18 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
       <Card>
         <div className="space-y-4">
           <form.Field name="personId" validators={{ onChange: ({ value }) => (!value ? 'Please select a person' : undefined) }}>
-            {(field) => <PersonPicker value={field.state.value || undefined} onChange={(id) => { const next = id ?? ''; field.handleChange(next); setPersonId(next || undefined); }} excludeSelf error={extractError(field.state.meta.errors)} />}
+            {(field) => (
+              <PersonField
+                value={field.state.value || undefined}
+                onChange={(id) => {
+                  const next = id ?? '';
+                  field.handleChange(next);
+                  setPersonId(next || undefined);
+                }}
+                error={extractError(field.state.meta.errors)}
+                disabled={submitting}
+              />
+            )}
           </form.Field>
           <form.Field name="amountMinor">{(field) => <MoneyInput label="Amount" value={field.state.value} currency={resolvedCurrency} onChange={(value) => field.handleChange(value)} error={extractError(field.state.meta.errors)} />}</form.Field>
           <form.Field name="date">{(field) => <DateInput label="Date" value={field.state.value} onChange={(date) => field.handleChange(date)} error={extractError(field.state.meta.errors)} />}</form.Field>
