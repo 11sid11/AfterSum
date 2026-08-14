@@ -6,10 +6,13 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padded?: boolean;
 }
 
+const surfaceClass =
+  'rounded-[18px] border border-slate-200/[0.85] bg-white shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_16px_rgb(15_23_42/0.035)] dark:border-white/[0.075] dark:bg-[#141821] dark:shadow-none';
+
 export function Card({ children, className, padded = true, ...rest }: CardProps) {
   return (
     <div
-      className={clsx('card', padded && 'p-4 sm:p-5', className)}
+      className={clsx(surfaceClass, padded && 'p-4 sm:p-5', className)}
       {...rest}
     >
       {children}

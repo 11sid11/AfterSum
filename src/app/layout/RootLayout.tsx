@@ -47,7 +47,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
 
   if (isOnboarding) {
     return (
-      <div className="min-h-screen text-slate-950 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fc] text-slate-950 dark:bg-[#0b0e14] dark:text-slate-100">
         <main className="mx-auto min-h-screen w-full max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
           {children ?? <Outlet />}
         </main>
@@ -56,24 +56,24 @@ export function RootLayout({ children }: { children?: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen text-slate-950 dark:text-slate-100">
-      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-4">
-        <div className="glass-bar mx-auto flex h-[58px] w-full max-w-5xl items-center gap-2 rounded-[22px] px-2 sm:px-2.5">
+    <div className="min-h-screen bg-[#f7f8fc] text-slate-950 dark:bg-[#0b0e14] dark:text-slate-100">
+      <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-[#f7f8fc]/95 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#0b0e14]/95 sm:border-0 sm:bg-transparent sm:px-5 sm:pt-4 dark:sm:bg-transparent">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:h-[58px] sm:rounded-[18px] sm:border sm:border-slate-200/80 sm:bg-white/[0.92] sm:px-2.5 sm:shadow-[0_1px_2px_rgb(15_23_42/0.025),0_5px_18px_rgb(15_23_42/0.035)] sm:backdrop-blur-xl dark:sm:border-white/[0.075] dark:sm:bg-[#141821]/[0.92] dark:sm:shadow-none">
           <Link
             to="/overview"
-            className="group flex shrink-0 items-center gap-2.5 rounded-2xl px-1.5 py-1"
+            className="group flex shrink-0 items-center gap-2.5 rounded-xl px-1 py-1"
             aria-label="AfterSum overview"
           >
-            <span className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-[14px] bg-[#17171d] shadow-soft-sm dark:bg-white">
-              <span className="absolute left-[9px] top-[8px] h-[14px] w-[7px] rotate-[-12deg] rounded-[3px] bg-brand-400" />
-              <span className="absolute bottom-[8px] right-[9px] h-[14px] w-[7px] rotate-[12deg] rounded-[3px] bg-white/95 dark:bg-[#17171d]" />
-              <span className="absolute bottom-[7px] left-[16px] h-1.5 w-1.5 rounded-full bg-sky-300" />
+            <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-[11px] bg-brand-600 shadow-[0_3px_10px_rgb(98_77_223/0.22)] dark:bg-brand-400">
+              <span className="absolute left-[8px] top-[7px] h-[12px] w-[6px] rotate-[-12deg] rounded-[2px] bg-brand-200 dark:bg-brand-900" />
+              <span className="absolute bottom-[7px] right-[8px] h-[12px] w-[6px] rotate-[12deg] rounded-[2px] bg-white dark:bg-brand-950" />
+              <span className="absolute bottom-[6px] left-[14px] h-1.5 w-1.5 rounded-full bg-sky-200 dark:bg-sky-700" />
             </span>
-            <span className="hidden text-[15px] font-semibold tracking-[-0.035em] sm:block">AfterSum</span>
+            <span className="text-[15px] font-semibold tracking-[-0.03em] text-brand-700 dark:text-brand-300">AfterSum</span>
           </Link>
 
           <nav
-            className="ml-2 hidden min-w-0 flex-1 items-center gap-1 rounded-[17px] bg-slate-900/[0.035] p-1 dark:bg-white/[0.045] sm:flex"
+            className="ml-3 hidden min-w-0 flex-1 items-center justify-center gap-1 sm:flex"
             aria-label="Primary navigation"
           >
             {NAV.map((item) => {
@@ -84,13 +84,13 @@ export function RootLayout({ children }: { children?: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   className={clsx(
-                    'inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-[13px] px-3 text-xs font-semibold transition-[background-color,color,box-shadow,transform] duration-200 active:scale-[0.98]',
+                    'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98]',
                     active
-                      ? 'bg-[#17171d] text-white shadow-soft-xs dark:bg-white dark:text-slate-950'
-                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.055] dark:hover:text-white',
+                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-400/[0.13] dark:text-brand-200'
+                      : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/[0.055] dark:hover:text-white',
                   )}
                 >
-                  <Icon size={15} className={active ? 'text-brand-300 dark:text-brand-600' : undefined} />
+                  <Icon size={15} />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -118,7 +118,7 @@ export function RootLayout({ children }: { children?: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-28 sm:px-6 sm:py-8 sm:pb-12">
+      <main className="mx-auto w-full max-w-5xl px-4 py-5 pb-28 sm:px-6 sm:py-8 sm:pb-12">
         <div key={currentPath} className="page-enter">
           {children ?? <Outlet />}
         </div>
@@ -129,15 +129,14 @@ export function RootLayout({ children }: { children?: ReactNode }) {
           type="button"
           onClick={() => setAddOpen(true)}
           aria-label="Quick add"
-          className="fixed bottom-[5.8rem] right-4 z-30 grid h-14 w-14 place-items-center rounded-[20px] border border-white/10 bg-[#17171d] text-white shadow-soft-lg transition-[transform,box-shadow] duration-200 active:scale-95 dark:bg-white dark:text-slate-950 sm:hidden"
+          className="fixed bottom-[5.65rem] right-4 z-30 grid h-14 w-14 place-items-center rounded-[17px] border border-brand-500 bg-brand-600 text-white shadow-[0_8px_22px_rgb(98_77_223/0.28)] transition-[transform,background-color] duration-200 hover:bg-brand-700 active:scale-95 dark:border-brand-300 dark:bg-brand-400 dark:text-brand-950"
         >
-          <span className="absolute inset-1 rounded-[16px] bg-brand-500/10" aria-hidden="true" />
-          <Plus size={22} className="relative" strokeWidth={2.4} />
+          <Plus size={22} strokeWidth={2.4} />
         </button>
       )}
 
-      <nav className="mobile-nav-safe fixed inset-x-0 bottom-0 z-30 px-3 sm:hidden" aria-label="Primary navigation">
-        <div className="glass-bar mx-auto grid max-w-md grid-cols-4 rounded-[24px] p-1.5">
+      <nav className="mobile-nav-safe fixed inset-x-0 bottom-0 z-30 sm:hidden" aria-label="Primary navigation">
+        <div className="mx-auto grid max-w-md grid-cols-4 rounded-t-[20px] border border-b-0 border-slate-200/[0.85] bg-white/[0.96] px-2 pt-1.5 shadow-[0_-8px_28px_rgb(15_23_42/0.055)] backdrop-blur-xl dark:border-white/[0.075] dark:bg-[#141821]/[0.96] dark:shadow-none">
           {NAV.map((item) => {
             const active = isActivePath(currentPath, item.to);
             const Icon = item.icon;
@@ -146,13 +145,13 @@ export function RootLayout({ children }: { children?: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 className={clsx(
-                  'relative flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[18px] text-[10px] font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.97]',
+                  'relative flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[13px] px-1 text-[10px] font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.97]',
                   active
-                    ? 'bg-[#17171d] text-white shadow-soft-xs dark:bg-white dark:text-slate-950'
-                    : 'text-slate-500 active:bg-slate-900/[0.04] dark:text-slate-400 dark:active:bg-white/[0.05]',
+                    ? 'bg-brand-600 text-white shadow-[0_3px_10px_rgb(98_77_223/0.18)] dark:bg-brand-400 dark:text-brand-950'
+                    : 'text-slate-500 active:bg-slate-100 dark:text-slate-400 dark:active:bg-white/[0.05]',
                 )}
               >
-                <Icon size={18} className={active ? 'text-brand-300 dark:text-brand-600' : undefined} />
+                <Icon size={18} />
                 <span>{item.label}</span>
               </Link>
             );

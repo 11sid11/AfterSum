@@ -1,7 +1,7 @@
 /** Shared view for a single month of Track data. */
 
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowDownRight, ArrowUpRight, Plus, Search, Tags, Wallet, X } from 'lucide-react';
+import { ArrowUpRight, Plus, Search, Tags, Wallet, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Money, EmptyState, Spinner } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
@@ -69,12 +69,11 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
   };
 
   return (
-    <div className="space-y-8">
-      <header className="flex min-w-0 items-end justify-between gap-4">
+    <div className="space-y-7">
+      <header className="flex min-w-0 items-center justify-between gap-4">
         <div className="min-w-0">
-          <span className="module-chip mb-3"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Track</span>
-          <h1 className="page-title">See where the month is going.</h1>
-          <p className="page-subtitle">Everyday income and spending, kept intentionally simple.</p>
+          <h1 className="text-[1.65rem] font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">Track</h1>
+          <p className="mt-1 text-xs text-slate-500">Everyday income and spending.</p>
         </div>
         <div className="flex shrink-0 gap-0.5">
           <button type="button" onClick={() => navigate({ to: '/track/categories' })} aria-label="Manage categories" className="icon-button"><Tags size={17} /></button>
@@ -82,61 +81,58 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
         </div>
       </header>
 
-      <div className="max-w-sm"><MonthNavigator month={month} disableNextIfCurrent currentMonth={currentMonth} /></div>
+      <div className="mx-auto max-w-sm"><MonthNavigator month={month} disableNextIfCurrent currentMonth={currentMonth} /></div>
 
-      <section className="hero-panel px-5 py-5 sm:px-7 sm:py-7">
-        <div className="relative z-10">
-          <div className="grid gap-5 sm:grid-cols-[1.35fr_0.65fr] sm:items-end">
-            <div>
-              <span className="hero-kicker"><ArrowDownRight size={12} /> Spent</span>
-              <p className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.055em] tabular-nums sm:text-[3.2rem]">
-                <Money value={{ amountMinor: summary.spentMinor, currency: summary.currency }} hide={hide} emphasize />
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-xs text-white/[0.48]">
-                <ArrowUpRight size={14} className="text-emerald-300/80" />
-                <span>Income</span>
-                <strong className="font-semibold text-white/80"><Money value={{ amountMinor: summary.incomeMinor, currency: summary.currency }} hide={hide} /></strong>
+      <Card className="overflow-hidden bg-gradient-to-br from-white via-white to-[#fff4f0] dark:from-[#141821] dark:via-[#141821] dark:to-[#211714]">
+        <div className="grid gap-5 sm:grid-cols-[1.2fr_0.8fr] sm:items-end">
+          <div>
+            <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Total spent</p>
+            <p className="mt-2 text-[2.55rem] font-semibold leading-none tracking-[-0.055em] tabular-nums text-slate-950 dark:text-white sm:text-[3rem]">
+              <Money value={{ amountMinor: summary.spentMinor, currency: summary.currency }} hide={hide} emphasize />
+            </p>
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-400/[0.09] dark:text-emerald-300">
+              <ArrowUpRight size={13} />
+              Income <span className="font-semibold tabular-nums"><Money value={{ amountMinor: summary.incomeMinor, currency: summary.currency }} hide={hide} /></span>
+            </div>
+          </div>
+
+          {summary.budget ? (
+            <div className="rounded-[15px] border border-slate-200/80 bg-white/75 p-3.5 dark:border-white/[0.07] dark:bg-white/[0.035]">
+              <div className="flex items-end justify-between gap-3">
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">Monthly budget</p>
+                <p className="text-xs font-semibold tabular-nums text-slate-800 dark:text-slate-200"><Money value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }} hide={hide} /></p>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-white/[0.08]">
+                <div
+                  className={summary.budget.percent > 100 ? 'h-full rounded-full bg-rose-500 transition-[width] duration-500' : 'h-full rounded-full bg-[#fd876f] transition-[width] duration-500'}
+                  style={{ width: `${Math.min(100, summary.budget.percent)}%` }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                <span className="text-slate-500">{summary.budget.percent}% used</span>
+                <span className={summary.budget.remainingMinor >= 0 ? 'font-medium text-[#a54431] dark:text-rose-300' : 'font-medium text-rose-600 dark:text-rose-300'}>
+                  {summary.budget.remainingMinor >= 0
+                    ? <><Money value={{ amountMinor: summary.budget.remainingMinor, currency: summary.currency }} hide={hide} /> remaining</>
+                    : <>Over by <Money value={{ amountMinor: Math.abs(summary.budget.remainingMinor), currency: summary.currency }} hide={hide} /></>}
+                </span>
               </div>
             </div>
-
-            {summary.budget ? (
-              <div className="rounded-[20px] border border-white/10 bg-white/[0.065] p-4 backdrop-blur">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-white/[0.42]">Budget</p>
-                    <p className="mt-1 text-sm font-semibold text-white/[0.88]">
-                      {summary.budget.remainingMinor >= 0
-                        ? <><Money value={{ amountMinor: summary.budget.remainingMinor, currency: summary.currency }} hide={hide} /> left</>
-                        : <>Over by <Money value={{ amountMinor: Math.abs(summary.budget.remainingMinor), currency: summary.currency }} hide={hide} /></>}
-                    </p>
-                  </div>
-                  <span className="text-xs font-semibold tabular-nums text-white/50">{summary.budget.percent}%</span>
-                </div>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={summary.budget.percent > 100 ? 'h-full rounded-full bg-rose-400' : 'h-full rounded-full bg-brand-400'}
-                    style={{ width: `${Math.min(100, summary.budget.percent)}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-[10px] text-white/[0.35]"><Money value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }} hide={hide} /> monthly limit</p>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate({ to: '/track/budget', search: { month } })}
-                className="min-h-[104px] rounded-[20px] border border-dashed border-white/[0.15] bg-white/[0.04] px-4 text-left transition-colors hover:bg-white/[0.07]"
-              >
-                <p className="text-sm font-semibold text-white/[0.82]">Set a monthly budget</p>
-                <p className="mt-1 text-xs leading-5 text-white/40">Optional. Useful only if you want a spending guardrail.</p>
-              </button>
-            )}
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/track/budget', search: { month } })}
+              className="min-h-[92px] rounded-[15px] border border-dashed border-slate-300 bg-white/[0.55] px-3.5 text-left transition-colors hover:bg-white dark:border-white/[0.12] dark:bg-white/[0.025] dark:hover:bg-white/[0.05]"
+            >
+              <p className="text-sm font-semibold">Set a monthly budget</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Optional spending guardrail.</p>
+            </button>
+          )}
         </div>
-      </section>
+      </Card>
 
       {showFilters && (
         <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
-          <div className="glass-bar grid grid-cols-3 rounded-[18px] p-1 text-xs">
+          <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[{ key: undefined, label: 'All' }, { key: 'expense' as const, label: 'Expense' }, { key: 'income' as const, label: 'Income' }].map((option) => (
               <button
                 key={option.label}
@@ -144,35 +140,37 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
                 onClick={() => changeType(option.key)}
                 aria-pressed={type === option.key}
                 className={type === option.key
-                  ? 'min-h-9 rounded-[13px] bg-[#17171d] px-3 font-semibold text-white shadow-soft-xs dark:bg-white dark:text-slate-950'
-                  : 'min-h-9 rounded-[13px] px-3 font-semibold text-slate-500 transition-colors hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}
+                  ? 'min-h-9 shrink-0 rounded-full bg-slate-950 px-4 text-xs font-semibold text-white shadow-[0_2px_6px_rgb(15_23_42/0.12)] dark:bg-white dark:text-slate-950'
+                  : 'min-h-9 shrink-0 rounded-full border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-white/[0.075] dark:bg-[#141821] dark:text-slate-400 dark:hover:text-white'}
               >
                 {option.label}
               </button>
             ))}
           </div>
-          <label className="glass-bar flex min-w-0 items-center gap-2 rounded-[18px] px-3.5 py-2 text-sm focus-within:border-brand-400/60 focus-within:ring-4 focus-within:ring-brand-500/10">
+          <label className="flex min-h-10 min-w-0 items-center gap-2 rounded-[13px] border border-slate-200/[0.85] bg-white px-3.5 text-sm shadow-[0_1px_2px_rgb(15_23_42/0.025)] focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/[0.08] dark:border-white/[0.075] dark:bg-[#141821]">
             <Search size={15} className="shrink-0 text-slate-400" />
-            <input type="search" placeholder="Search this month" value={text} onChange={(event) => setText(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400" aria-label="Search Track transactions" />
+            <input type="search" placeholder="Search transactions…" value={text} onChange={(event) => setText(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-slate-400" aria-label="Search Track transactions" />
           </label>
         </div>
       )}
 
       {summary.byCategory.length > 0 && (
         <section>
-          <div className="mb-3">
-            <h2 className="section-title">Spending shape</h2>
-            <p className="mt-1 text-xs text-slate-400">Tap a category to focus the transactions below.</p>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold tracking-[-0.02em]">Top categories</h2>
+              <p className="mt-1 text-xs text-slate-500">Tap a category to filter transactions.</p>
+            </div>
           </div>
-          <Card><CategoryBreakdown rows={summary.byCategory} currency={summary.currency} totalMinor={summary.spentMinor} selectedCategoryId={selectedCategoryId} onSelectCategory={toggleCategory} /></Card>
+          <CategoryBreakdown rows={summary.byCategory} currency={summary.currency} totalMinor={summary.spentMinor} selectedCategoryId={selectedCategoryId} onSelectCategory={toggleCategory} />
         </section>
       )}
 
       <section>
         <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
           <div>
-            <h2 className="section-title">Transactions</h2>
-            {selectedCategoryName && <p className="mt-1 text-xs text-slate-400">Filtered to {selectedCategoryName}</p>}
+            <h2 className="text-sm font-semibold tracking-[-0.02em]">Recent transactions</h2>
+            {selectedCategoryName && <p className="mt-1 text-xs text-slate-500">Filtered to {selectedCategoryName}</p>}
           </div>
           {selectedCategoryName && <button type="button" onClick={() => setSelectedCategoryId(undefined)} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/30"><X size={14} /> Clear</button>}
         </div>
@@ -180,7 +178,7 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
           {(monthTxs ?? []).length === 0 ? (
             <EmptyState title={selectedCategoryName ? `No ${selectedCategoryName.toLocaleLowerCase()} transactions` : 'No transactions this month'} description={selectedCategoryName ? 'Clear the category filter or add a transaction.' : 'Add your first one to start tracking.'} icon={<Wallet size={24} />} action={<Button onClick={() => onAdd('expense')}><Plus size={16} /> Add expense</Button>} />
           ) : (
-            <ul className="stagger-list divide-y divide-slate-900/[0.055] dark:divide-white/[0.07]">{(monthTxs ?? []).map((transaction) => <li key={transaction.id}><TransactionListItem transaction={transaction} /></li>)}</ul>
+            <ul className="stagger-list divide-y divide-slate-200/75 dark:divide-white/[0.07]">{(monthTxs ?? []).map((transaction) => <li key={transaction.id}><TransactionListItem transaction={transaction} /></li>)}</ul>
           )}
         </Card>
       </section>
