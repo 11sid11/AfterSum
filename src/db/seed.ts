@@ -5,7 +5,7 @@
  *   1. create default app settings
  *   2. create the self Person
  *   3. create default Track categories
- *   4. mark onboarding complete
+ *   4. leave onboarding incomplete so the first-run setup is shown
  *
  * Persistent storage is requested only through an explicit
  * onboarding action, never automatically.
@@ -38,7 +38,7 @@ export async function ensureFirstLaunch(): Promise<void> {
   const db = getDB();
 
   const existingSettings = await db.settings.get('app');
-  if (existingSettings?.onboardingComplete) return;
+  if (existingSettings) return;
 
   const now = nowISO();
   const newRevision = 1;
@@ -51,7 +51,7 @@ export async function ensureFirstLaunch(): Promise<void> {
     defaultCurrency: 'INR',
     theme: 'system',
     hideAmounts: false,
-    onboardingComplete: true,
+    onboardingComplete: false,
   };
 
   const selfPerson: Person = {
