@@ -99,7 +99,7 @@ export function SplitGroupSettlePage() {
                   <button
                     type="button"
                     onClick={() => { setFromId(transfer.fromPersonId); setToId(transfer.toPersonId); setAmount(transfer.amountMinor); }}
-                    className="surface-lift flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-[18px] border border-slate-900/[0.06] bg-white/92 px-3.5 py-2.5 text-left text-sm shadow-soft-xs dark:border-white/[0.07] dark:bg-white/[0.04] dark:shadow-none"
+                    className="surface-lift flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-[18px] border border-slate-900/[0.06] bg-white/[0.92] px-3.5 py-2.5 text-left text-sm shadow-soft-xs dark:border-white/[0.07] dark:bg-white/[0.04] dark:shadow-none"
                   >
                     <span className="min-w-0 truncate font-medium">{from?.isSelf ? 'You' : from?.name ?? '?'} → {to?.isSelf ? 'You' : to?.name ?? '?'}</span>
                     <span className="shrink-0 font-semibold tabular-nums"><Money value={{ amountMinor: transfer.amountMinor, currency: group.currency }} hide={hide} /></span>
