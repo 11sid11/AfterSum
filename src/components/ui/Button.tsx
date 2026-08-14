@@ -11,16 +11,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClass: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white shadow-md shadow-brand-600/15 hover:bg-brand-700',
-  secondary: 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
-  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
-  danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700',
+  primary: 'btn-primary',
+  secondary:
+    'btn border border-slate-900/[0.07] bg-white/90 text-slate-800 shadow-soft-xs hover:-translate-y-px hover:border-slate-900/[0.1] hover:bg-white hover:shadow-soft-sm dark:border-white/[0.08] dark:bg-white/[0.055] dark:text-slate-100 dark:hover:border-white/[0.12] dark:hover:bg-white/[0.08] dark:hover:shadow-none',
+  ghost: 'btn-ghost',
+  danger: 'btn-danger',
 };
 
 const sizeClass: Record<Size, string> = {
-  sm: 'h-9 rounded-xl px-3 text-sm',
+  sm: 'h-9 rounded-[13px] px-3 text-xs',
   md: 'h-11 rounded-2xl px-4 text-sm',
-  lg: 'h-12 rounded-2xl px-5 text-base',
+  lg: 'h-12 rounded-[18px] px-5 text-[15px]',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -32,7 +33,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={clsx(
-        'inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60',
         variantClass[variant],
         sizeClass[size],
         block && 'w-full',
