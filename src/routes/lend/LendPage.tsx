@@ -40,7 +40,7 @@ export function LendPage() {
               <p className="mt-3 text-[2.3rem] font-semibold leading-none tracking-[-0.055em] tabular-nums sm:text-[3rem]">
                 <Money value={{ amountMinor: Math.abs(net), currency }} hide={settings.hideAmounts} emphasize />
               </p>
-              <p className="mt-2 text-xs text-white/45">{net === 0 ? 'Everything is balanced.' : net > 0 ? 'In your favor across Lend.' : 'You currently owe more than you are owed.'}</p>
+              <p className="mt-2 text-xs text-white/[0.45]">{net === 0 ? 'Everything is balanced.' : net > 0 ? 'In your favor across Lend.' : 'You currently owe more than you are owed.'}</p>
             </div>
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] border border-white/10 bg-emerald-400/10 text-emerald-300">
               {net >= 0 ? <ArrowDownLeft size={19} /> : <ArrowUpRight size={19} />}
@@ -49,13 +49,13 @@ export function LendPage() {
 
           <div className="mt-6 grid grid-cols-2 gap-2">
             <div className="rounded-[19px] border border-white/10 bg-white/[0.055] px-3.5 py-3 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/38">You'll receive</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/[0.38]">You'll receive</p>
               <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-emerald-300">
                 <Money value={{ amountMinor: youWillReceive, currency }} hide={settings.hideAmounts} emphasize />
               </p>
             </div>
             <div className="rounded-[19px] border border-white/10 bg-white/[0.055] px-3.5 py-3 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/38">You owe</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/[0.38]">You owe</p>
               <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-rose-300">
                 <Money value={{ amountMinor: youOwe, currency }} hide={settings.hideAmounts} emphasize />
               </p>
