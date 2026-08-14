@@ -150,7 +150,8 @@ export interface SplitItem {
 
 /**
  * Local recurring instruction. Occurrences become ordinary SplitExpense events.
- * `nextDate` is the next YYYY-MM-DD occurrence that has not yet been materialized.
+ * `anchorDate` preserves the user's original calendar intent while `nextDate`
+ * tracks the next occurrence that has not yet been materialized.
  */
 export interface SplitRecurringTemplate {
   id: string;
@@ -163,6 +164,9 @@ export interface SplitRecurringTemplate {
   allocation?: SplitAllocationSnapshot;
   note?: string;
   frequency: SplitRecurringFrequency;
+  /** Original YYYY-MM-DD used to preserve day-of-month/year recurrence semantics. */
+  anchorDate: string;
+  /** Next YYYY-MM-DD occurrence that has not yet been generated. */
   nextDate: string;
   enabled: boolean;
   originalCurrency?: CurrencyCode;
@@ -211,6 +215,8 @@ export interface SplitExpense extends BaseEntity {
   recurrenceTemplateId?: string;
   /** YYYY-MM-DD occurrence key used for idempotency. */
   recurrenceOccurrenceDate?: string;
+  /** Stable local source key used to skip duplicate CSV rows on re-import. */
+  importSourceKey?: string;
 }
 
 export interface SplitPayer extends BaseEntity {
