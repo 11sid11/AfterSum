@@ -11,11 +11,11 @@ describe('first-launch initialization', () => {
     freshDB();
   });
 
-  it('idempotently creates settings + self + default categories', async () => {
+  it('idempotently creates settings + self + default categories and leaves onboarding pending', async () => {
     await ensureFirstLaunch();
     await ensureFirstLaunch();
     const settings = await settingsRepository.get();
-    expect(settings.onboardingComplete).toBe(true);
+    expect(settings.onboardingComplete).toBe(false);
     expect(settings.defaultCurrency).toBe('INR');
     const self = await personRepository.get('self');
     expect(self?.name).toBe('Me');
@@ -26,5 +26,14 @@ describe('first-launch initialization', () => {
     const income = cats.filter((c) => c.type === 'income');
     expect(expense.length).toBeGreaterThan(0);
     expect(income.length).toBeGreaterThan(0);
+  });
+
+  it('does not overwrite a completed onboarding state on later launches', async () => {
+    await ensureFirstLaunch();
+    await settingsRepository.setOnboardingComplete(true);
+    await ensureFirstLaunch();
+
+    const settings = await settingsRepository.get();
+    expect(settings.onboardingComplete).toBe(true);
   });
 });
