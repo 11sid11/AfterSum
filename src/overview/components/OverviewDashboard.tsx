@@ -38,7 +38,7 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="hero-kicker"><WalletCards size={12} /> Personal spending</span>
-              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.12em] text-white/45">This month</p>
+              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.12em] text-white/[0.45]">This month</p>
             </div>
             <Link
               to="/track"
@@ -56,7 +56,7 @@ export function OverviewDashboard({ month = toMonthKey() }: { month?: string }) 
               emphasize
             />
           </p>
-          <p className="mt-3 max-w-lg text-xs leading-5 text-white/48">Your own Track expenses plus your share of active Split expenses.</p>
+          <p className="mt-3 max-w-lg text-xs leading-5 text-white/[0.48]">Your own Track expenses plus your share of active Split expenses.</p>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <HeroBreakdown
@@ -152,7 +152,7 @@ function HeroBreakdown({
       to={to}
       className="group flex min-w-0 items-center gap-3 rounded-[19px] border border-white/10 bg-white/[0.065] px-3.5 py-3 backdrop-blur transition-[background-color,transform] duration-200 hover:-translate-y-px hover:bg-white/[0.095]"
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.08] text-white/68">{icon}</span>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.08] text-white/[0.68]">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40">{label}</span>
         <span className="mt-0.5 block truncate text-sm font-semibold tabular-nums text-white/90">{amount}</span>
@@ -200,13 +200,13 @@ function PositionCard({
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <div className="rounded-[17px] bg-emerald-500/[0.075] px-3 py-2.5 dark:bg-emerald-400/[0.07]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-emerald-700/65 dark:text-emerald-300/65">Receive</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-emerald-700/[0.65] dark:text-emerald-300/[0.65]">Receive</p>
             <p className="mt-1 truncate text-[15px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
               <Money value={{ amountMinor: receiveMinor, currency }} hide={hide} emphasize />
             </p>
           </div>
           <div className="rounded-[17px] bg-rose-500/[0.07] px-3 py-2.5 dark:bg-rose-400/[0.065]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-rose-700/60 dark:text-rose-300/65">Owe</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.09em] text-rose-700/60 dark:text-rose-300/[0.65]">Owe</p>
             <p className="mt-1 truncate text-[15px] font-semibold tabular-nums text-rose-700 dark:text-rose-300">
               <Money value={{ amountMinor: oweMinor, currency }} hide={hide} />
             </p>
