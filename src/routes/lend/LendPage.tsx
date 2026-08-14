@@ -1,7 +1,7 @@
 /** Lend dashboard. */
 
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowDownLeft, ArrowUpRight, HandCoins, Plus } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, HandCoins, Plus, Users } from 'lucide-react';
 import { Button, Card, EmptyState, Money, Spinner } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { useLendDashboard } from '@modules/lend/queries';
@@ -30,7 +30,7 @@ export function LendPage() {
           <h1 className="text-[1.65rem] font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">Lend</h1>
           <p className="mt-1 text-xs text-slate-500">Direct money between you and another person.</p>
         </div>
-        <Button size="sm" onClick={() => navigate({ to: '/lend/add' })} className="shrink-0"><Plus size={15} /> New</Button>
+        <Button size="sm" onClick={() => navigate({ to: '/lend/add' })} className="shrink-0"><Plus size={15} /> New entry</Button>
       </header>
 
       <Card className={netNegative
@@ -68,15 +68,24 @@ export function LendPage() {
       </section>
 
       <section>
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold tracking-[-0.02em]">Balances</h2>
-          <p className="mt-1 text-xs text-slate-500">Each person stays independent from Split.</p>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold tracking-[-0.02em]">Balances</h2>
+            <p className="mt-1 text-xs text-slate-500">Each person stays independent from Split.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate({ to: '/settings/people' })}
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+          >
+            <Users size={14} /> Manage people
+          </button>
         </div>
         {!hasAnyActivity ? (
           <Card>
             <EmptyState
               title="No Lend activity yet"
-              description="Track money you've lent to or borrowed from people you know."
+              description="Add an entry, then choose an existing person or create them without leaving the form."
               icon={<HandCoins size={26} />}
               action={<Button onClick={() => navigate({ to: '/lend/add' })}><Plus size={16} /> Add first entry</Button>}
             />
