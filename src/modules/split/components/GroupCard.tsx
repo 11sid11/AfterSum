@@ -21,7 +21,7 @@ export function GroupCard({ group, yourNet, expenseCount }: GroupCardProps) {
     <Link
       to="/split/group/$groupId"
       params={{ groupId: group.id }}
-      className="group surface-lift flex min-w-0 items-center gap-3 rounded-[24px] border border-slate-900/[0.06] bg-white/94 p-3.5 shadow-soft-sm backdrop-blur dark:border-white/[0.07] dark:bg-white/[0.045] dark:shadow-none"
+      className="group surface-lift flex min-w-0 items-center gap-3 rounded-[24px] border border-slate-900/[0.06] bg-white/[0.94] p-3.5 shadow-soft-sm backdrop-blur dark:border-white/[0.07] dark:bg-white/[0.045] dark:shadow-none"
     >
       <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[17px] bg-[#1b1830] text-base font-semibold text-white shadow-soft-xs dark:bg-brand-300 dark:text-brand-950">
         <span className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-brand-400/40 blur-md" aria-hidden="true" />
@@ -33,7 +33,7 @@ export function GroupCard({ group, yourNet, expenseCount }: GroupCardProps) {
       </div>
       <div className="shrink-0 text-right">
         <div className="flex items-center justify-end gap-1.5">
-          {yourNet === 0 && <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-300"><Check size={10} strokeWidth={2.8} /></span>}
+          {yourNet === 0 && <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-300"><Check size={10} strokeWidth={2.8} /></span>}
           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{label}</p>
         </div>
         <p className={clsx('mt-0.5 max-w-32 truncate text-sm font-semibold tabular-nums', yourNet > 0 && 'text-emerald-600 dark:text-emerald-300', yourNet < 0 && 'text-rose-600 dark:text-rose-300', yourNet === 0 && 'text-slate-500 dark:text-slate-400')}>
