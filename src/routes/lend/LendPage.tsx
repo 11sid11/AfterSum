@@ -20,54 +20,57 @@ export function LendPage() {
   const { youWillReceive, youOwe, people } = dashboard;
   const hasAnyActivity = people.length > 0;
   const net = youWillReceive - youOwe;
+  const netPositive = net > 0;
+  const netNegative = net < 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <header className="flex min-w-0 items-end justify-between gap-4">
         <div className="min-w-0">
-          <span className="module-chip mb-3"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Lend</span>
-          <h1 className="page-title">Personal IOUs, without the mental math.</h1>
-          <p className="page-subtitle">One clear ledger per person. Repayments change the balance; nothing else does.</p>
+          <h1 className="text-[1.65rem] font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">Lend</h1>
+          <p className="mt-1 text-xs text-slate-500">Direct money between you and another person.</p>
         </div>
-        <Button size="sm" onClick={() => navigate({ to: '/lend/add' })} className="shrink-0"><Plus size={15} /> Add</Button>
+        <Button size="sm" onClick={() => navigate({ to: '/lend/add' })} className="shrink-0"><Plus size={15} /> New</Button>
       </header>
 
-      <section className="hero-panel px-5 py-5 sm:px-7 sm:py-7">
-        <div className="relative z-10">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="hero-kicker"><HandCoins size={12} /> Net position</span>
-              <p className="mt-3 text-[2.3rem] font-semibold leading-none tracking-[-0.055em] tabular-nums sm:text-[3rem]">
-                <Money value={{ amountMinor: Math.abs(net), currency }} hide={settings.hideAmounts} emphasize />
-              </p>
-              <p className="mt-2 text-xs text-white/[0.45]">{net === 0 ? 'Everything is balanced.' : net > 0 ? 'In your favor across Lend.' : 'You currently owe more than you are owed.'}</p>
-            </div>
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] border border-white/10 bg-emerald-400/10 text-emerald-300">
-              {net >= 0 ? <ArrowDownLeft size={19} /> : <ArrowUpRight size={19} />}
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-2">
-            <div className="rounded-[19px] border border-white/10 bg-white/[0.055] px-3.5 py-3 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/[0.38]">You'll receive</p>
-              <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-emerald-300">
-                <Money value={{ amountMinor: youWillReceive, currency }} hide={settings.hideAmounts} emphasize />
-              </p>
-            </div>
-            <div className="rounded-[19px] border border-white/10 bg-white/[0.055] px-3.5 py-3 backdrop-blur">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/[0.38]">You owe</p>
-              <p className="mt-1 truncate text-[16px] font-semibold tabular-nums text-rose-300">
-                <Money value={{ amountMinor: youOwe, currency }} hide={settings.hideAmounts} emphasize />
-              </p>
-            </div>
-          </div>
+      <Card className={netNegative
+        ? 'overflow-hidden bg-gradient-to-b from-rose-50/80 to-white text-center dark:from-rose-400/[0.06] dark:to-[#141821]'
+        : 'overflow-hidden bg-gradient-to-b from-emerald-50/80 to-white text-center dark:from-emerald-400/[0.06] dark:to-[#141821]'}>
+        <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">Total net position</p>
+        <p className={netNegative
+          ? 'mt-2 text-[2.65rem] font-semibold leading-none tracking-[-0.055em] tabular-nums text-rose-700 dark:text-rose-300'
+          : 'mt-2 text-[2.65rem] font-semibold leading-none tracking-[-0.055em] tabular-nums text-emerald-700 dark:text-emerald-300'}>
+          <Money value={{ amountMinor: Math.abs(net), currency }} hide={settings.hideAmounts} emphasize />
+        </p>
+        <div className={net === 0
+          ? 'mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600 dark:bg-white/[0.055] dark:text-slate-300'
+          : netPositive
+            ? 'mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-400/[0.11] dark:text-emerald-300'
+            : 'mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-[11px] font-medium text-rose-700 dark:bg-rose-400/[0.11] dark:text-rose-300'}>
+          {netPositive ? <ArrowDownLeft size={13} /> : netNegative ? <ArrowUpRight size={13} /> : null}
+          {net === 0 ? 'Everything settled' : netPositive ? 'To receive overall' : 'You owe overall'}
         </div>
+      </Card>
+
+      <section className="grid grid-cols-2 gap-3">
+        <Card className="min-w-0">
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">You'll receive</p>
+          <p className="mt-2 truncate text-[18px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+            <Money value={{ amountMinor: youWillReceive, currency }} hide={settings.hideAmounts} emphasize />
+          </p>
+        </Card>
+        <Card className="min-w-0">
+          <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">You owe</p>
+          <p className="mt-2 truncate text-[18px] font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+            <Money value={{ amountMinor: youOwe, currency }} hide={settings.hideAmounts} emphasize />
+          </p>
+        </Card>
       </section>
 
       <section>
         <div className="mb-3">
-          <h2 className="section-title">People</h2>
-          <p className="mt-1 text-xs text-slate-400">Each person stays separate, even if other modules also involve them.</p>
+          <h2 className="text-sm font-semibold tracking-[-0.02em]">Balances</h2>
+          <p className="mt-1 text-xs text-slate-500">Each person stays independent from Split.</p>
         </div>
         {!hasAnyActivity ? (
           <Card>
