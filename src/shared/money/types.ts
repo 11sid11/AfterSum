@@ -17,19 +17,20 @@ export interface Money {
   currency: CurrencyCode;
 }
 
-/** Known decimal places per ISO 4217-ish list. Default = 2. */
-const KNOWN_DECIMALS: Record<string, number> = {
-  INR: 2,
-  USD: 2,
-  EUR: 2,
-  GBP: 2,
-  JPY: 0,
-  KRW: 0,
-  BHD: 3,
-  KWD: 3,
-};
+/** ISO-style exceptions to the common two-decimal rule. */
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF',
+  'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+]);
+
+const THREE_DECIMAL_CURRENCIES = new Set([
+  'BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND',
+]);
 
 /** Number of fractional digits for a given currency. Defaults to 2. */
 export function currencyDecimals(currency: CurrencyCode): number {
-  return KNOWN_DECIMALS[currency.toUpperCase()] ?? 2;
+  const code = currency.toUpperCase();
+  if (ZERO_DECIMAL_CURRENCIES.has(code)) return 0;
+  if (THREE_DECIMAL_CURRENCIES.has(code)) return 3;
+  return 2;
 }
