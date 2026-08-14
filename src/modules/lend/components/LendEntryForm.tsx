@@ -16,7 +16,7 @@ import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
 import { lendEntryRepository } from '../repositories/lendEntryRepository';
 import { lendLedgerRepository } from '../repositories/lendLedgerRepository';
-import { LendEntryInputSchema, LendEntryTypeSchema } from '../domain/validation';
+import { LendEntryTypeSchema, type LendEntryInput } from '../domain/validation';
 import type { LendEntryType } from '@db/schema';
 import type { CurrencyCode } from '@shared/money';
 import { ArrowLeft } from 'lucide-react';
@@ -99,7 +99,7 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
       try {
         if (!value.personId) throw new Error('Please select a person');
         const ledger = await lendLedgerRepository.getOrCreate(value.personId, resolvedCurrency);
-        const cleaned: z.infer<typeof LendEntryInputSchema> = {
+        const cleaned: LendEntryInput = {
           ledgerId: ledger.id,
           type: value.type,
           amountMinor: value.amountMinor,
