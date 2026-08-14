@@ -32,6 +32,58 @@ const positiveAmountMinor = z
 
 const personId = z.string().min(1, 'Person id is required');
 
+export const SPLIT_METHODS = ['equal', 'exact', 'percentage', 'shares'] as const satisfies readonly SplitMethod[];
+export const SplitMethodSchema = z.enum(SPLIT_METHODS);
+
+export const SPLIT_EXPENSE_CATEGORIES = [
+  'food',
+  'stay',
+  'travel',
+  'fun',
+  'shopping',
+  'other',
+] as const;
+export const SplitExpenseCategorySchema = z.enum(SPLIT_EXPENSE_CATEGORIES);
+
+export const SplitAllocationSnapshotSchema = z.object({
+  exactAmountsByPersonId: z.record(personId, positiveAmountMinor).optional(),
+  percentagesByPersonId: z.record(personId, z.number().min(0).max(100)).optional(),
+  sharesByPersonId: z.record(personId, z.number().int().positive()).optional(),
+});
+
+export const SplitDefaultSplitSchema = z.object({
+  payerPersonId: personId.optional(),
+  participantIds: z.array(personId).min(1),
+  splitMethod: z.enum(['equal', 'percentage', 'shares']),
+  allocation: SplitAllocationSnapshotSchema.optional(),
+});
+
+export const SplitItemSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1, 'Item name is required').max(120),
+  amountMinor: positiveAmountMinor,
+  participantIds: z.array(personId).min(1, 'Choose at least one person for every item'),
+});
+
+export const SplitRecurringTemplateSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1).max(200),
+  amountMinor: positiveAmountMinor,
+  category: SplitExpenseCategorySchema.optional(),
+  payerPersonId: personId,
+  participantIds: z.array(personId).min(1),
+  splitMethod: SplitMethodSchema,
+  allocation: SplitAllocationSnapshotSchema.optional(),
+  note: z.string().max(1000).optional().or(z.literal('')),
+  frequency: z.enum(['weekly', 'monthly', 'yearly']),
+  nextDate: dateOnly,
+  enabled: z.boolean(),
+  originalCurrency: currencyCode.optional(),
+  originalAmountMinor: positiveAmountMinor.optional(),
+  exchangeRate: z.number().positive().finite().optional(),
+  items: z.array(SplitItemSchema).optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Group
 // ---------------------------------------------------------------------------
@@ -41,6 +93,8 @@ export const SplitGroupInputSchema = z.object({
   description: z.string().max(500).optional().or(z.literal('')),
   currency: currencyCode,
   archived: z.boolean().optional(),
+  defaultSplit: SplitDefaultSplitSchema.optional(),
+  recurringTemplates: z.array(SplitRecurringTemplateSchema).optional(),
 });
 
 export type SplitGroupInput = z.infer<typeof SplitGroupInputSchema>;
@@ -64,19 +118,6 @@ export type SplitGroupMemberInput = z.infer<typeof SplitGroupMemberInputSchema>;
 // Expense
 // ---------------------------------------------------------------------------
 
-export const SPLIT_METHODS = ['equal', 'exact', 'percentage', 'shares'] as const satisfies readonly SplitMethod[];
-export const SplitMethodSchema = z.enum(SPLIT_METHODS);
-
-export const SPLIT_EXPENSE_CATEGORIES = [
-  'food',
-  'stay',
-  'travel',
-  'fun',
-  'shopping',
-  'other',
-] as const;
-export const SplitExpenseCategorySchema = z.enum(SPLIT_EXPENSE_CATEGORIES);
-
 const SplitExpenseBaseSchema = z.object({
   groupId: personId,
   title: z.string().min(1, 'Title is required').max(200),
@@ -86,6 +127,12 @@ const SplitExpenseBaseSchema = z.object({
   splitMethod: SplitMethodSchema,
   category: SplitExpenseCategorySchema.optional(),
   note: z.string().max(1000).optional().or(z.literal('')),
+  originalCurrency: currencyCode.optional(),
+  originalAmountMinor: positiveAmountMinor.optional(),
+  exchangeRate: z.number().positive().finite().optional(),
+  items: z.array(SplitItemSchema).optional(),
+  recurrenceTemplateId: z.string().min(1).optional(),
+  recurrenceOccurrenceDate: dateOnly.optional(),
 });
 
 export const SplitPayerInputSchema = z.object({
