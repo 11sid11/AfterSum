@@ -60,13 +60,13 @@ export function CategoryBreakdown({ rows, currency, totalMinor, emptyLabel = 'No
                   'h-full w-full rounded-[16px] border p-3 text-left shadow-[0_1px_2px_rgb(15_23_42/0.025)] transition-[border-color,background-color,transform] duration-200 active:scale-[0.98]',
                   selected
                     ? 'border-brand-300 bg-brand-50/80 ring-2 ring-brand-500/[0.12] dark:border-brand-400/[0.45] dark:bg-brand-400/[0.08]'
-                    : 'border-slate-200/85 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.075] dark:bg-[#141821] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.055]',
+                    : 'border-slate-200/[0.85] bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.075] dark:bg-[#141821] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.055]',
                 )}
               >
                 {content}
               </button>
             ) : (
-              <div className="h-full rounded-[16px] border border-slate-200/85 bg-white p-3 dark:border-white/[0.075] dark:bg-[#141821]">{content}</div>
+              <div className="h-full rounded-[16px] border border-slate-200/[0.85] bg-white p-3 dark:border-white/[0.075] dark:bg-[#141821]">{content}</div>
             )}
           </li>
         );
