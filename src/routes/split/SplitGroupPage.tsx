@@ -136,7 +136,7 @@ export function SplitGroupPage() {
             <button
               type="button"
               onClick={() => navigate({ to: '/split' })}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/65 transition-colors hover:bg-white/[0.1] hover:text-white"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/[0.65] transition-colors hover:bg-white/[0.1] hover:text-white"
               aria-label="Back to trips"
             >
               <ArrowLeft size={17} />
@@ -144,7 +144,7 @@ export function SplitGroupPage() {
             <button
               type="button"
               onClick={() => navigate({ to: '/split/group/$groupId/settings', params: { groupId } })}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/65 transition-colors hover:bg-white/[0.1] hover:text-white"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/10 bg-white/[0.065] text-white/[0.65] transition-colors hover:bg-white/[0.1] hover:text-white"
               aria-label="Trip settings"
             >
               <SettingsIcon size={17} />
@@ -154,7 +154,7 @@ export function SplitGroupPage() {
           <div className="mt-5 min-w-0">
             <span className="hero-kicker">{activeMembers.length} participant{activeMembers.length === 1 ? '' : 's'} · {group.currency}</span>
             <h1 className="mt-3 truncate text-[2rem] font-semibold leading-none tracking-[-0.05em] text-white sm:text-[2.45rem]">{group.name}</h1>
-            {group.description && <p className="mt-2 max-w-xl text-xs leading-5 text-white/42">{group.description}</p>}
+            {group.description && <p className="mt-2 max-w-xl text-xs leading-5 text-white/[0.42]">{group.description}</p>}
           </div>
 
           <button
@@ -270,8 +270,8 @@ export function SplitGroupPage() {
 function TripStat({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className="truncate text-[9px] font-semibold uppercase tracking-[0.09em] text-white/35 min-[380px]:text-[10px]">{label}</p>
-      <div className={accent ? 'mt-1 truncate text-sm font-semibold text-emerald-300 min-[380px]:text-base' : 'mt-1 truncate text-sm font-semibold text-white/88 min-[380px]:text-base'}>
+      <p className="truncate text-[9px] font-semibold uppercase tracking-[0.09em] text-white/[0.35] min-[380px]:text-[10px]">{label}</p>
+      <div className={accent ? 'mt-1 truncate text-sm font-semibold text-emerald-300 min-[380px]:text-base' : 'mt-1 truncate text-sm font-semibold text-white/[0.88] min-[380px]:text-base'}>
         {value}
       </div>
     </div>
