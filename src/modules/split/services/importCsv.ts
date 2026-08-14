@@ -10,6 +10,7 @@ export type SplitCsvKind = 'splitwise' | 'generic';
 
 export interface SplitCsvRowPreview {
   rowNumber: number;
+  sourceKey: string;
   date: string;
   title: string;
   amountMinor: number;
@@ -29,6 +30,7 @@ export interface SplitCsvPreview {
 export interface SplitCsvImportResult {
   imported: number;
   peopleAdded: number;
+  skippedDuplicates: number;
 }
 
 /** Parse a CSV locally. Nothing is written until executeSplitCsvImport is called. */
@@ -54,6 +56,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
     .map((header, index) => ({ header, index }))
     .filter(({ header }) => header.endsWith(' owed'));
   const isSplitwise = paidColumns.length > 0 && owedColumns.length > 0;
+  const kind: SplitCsvKind = isSplitwise ? 'splitwise' : 'generic';
   const warnings: string[] = [];
   const rows: SplitCsvRowPreview[] = [];
   const participantNames = new Set<string>();
@@ -98,6 +101,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
 
     const base: SplitCsvRowPreview = {
       rowNumber,
+      sourceKey: importSourceKey(kind, rowNumber, source),
       date,
       title: title || 'Imported expense',
       amountMinor,
@@ -123,9 +127,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
           participantNames.add(name);
         }
       }
-      const paidTotal = sumValues(payerAmountsByName);
-      const owedTotal = sumValues(shareAmountsByName);
-      if (paidTotal !== amountMinor || owedTotal !== amountMinor) {
+      if (sumValues(payerAmountsByName) !== amountMinor || sumValues(shareAmountsByName) !== amountMinor) {
         warnings.push(`Row ${rowNumber}: paid/owed columns do not add up to the expense total.`);
         skippedRows += 1;
         continue;
@@ -140,7 +142,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
   if (rows.length === 0) throw new Error(warnings[0] ?? 'No importable expenses found.');
 
   return {
-    kind: isSplitwise ? 'splitwise' : 'generic',
+    kind,
     rows,
     participantNames: [...participantNames].sort((a, b) => a.localeCompare(b)),
     warnings,
@@ -152,6 +154,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
  * Import a validated preview into one trip.
  * Splitwise paid/owed columns are preserved as exact payer/share values.
  * Generic CSV rows use the trip's saved split (or You + everyone equally).
+ * Rows imported previously from the same CSV position/content are skipped.
  */
 export async function executeSplitCsvImport(
   groupId: string,
@@ -161,6 +164,12 @@ export async function executeSplitCsvImport(
   const group = await db.splitGroups.get(groupId);
   if (!group || group.deletedAt || group.archived) throw new Error('Trip is not available for import.');
 
+  const existingExpenses = await db.splitExpenses.where('groupId').equals(groupId).toArray();
+  const existingKeys = new Set(existingExpenses.map((expense) => expense.importSourceKey).filter(Boolean));
+  const pendingRows = preview.rows.filter((row) => !existingKeys.has(row.sourceKey));
+  const skippedDuplicates = preview.rows.length - pendingRows.length;
+  if (pendingRows.length === 0) return { imported: 0, peopleAdded: 0, skippedDuplicates };
+
   const people = (await db.people.toArray()).filter((person) => !person.deletedAt);
   const self = people.find((person) => person.isSelf);
   if (!self) throw new Error('Your profile is missing.');
@@ -168,7 +177,13 @@ export async function executeSplitCsvImport(
   const peopleByName = new Map(people.map((person) => [normalizeName(person.name), person]));
   let peopleAdded = 0;
 
-  for (const name of preview.participantNames) {
+  const namesNeeded = new Set<string>();
+  for (const row of pendingRows) {
+    for (const name of Object.keys(row.payerAmountsByName ?? {})) namesNeeded.add(name);
+    for (const name of Object.keys(row.shareAmountsByName ?? {})) namesNeeded.add(name);
+  }
+
+  for (const name of namesNeeded) {
     const key = normalizeName(name);
     if (peopleByName.has(key)) continue;
     const person = await personRepository.create({ name: name.trim() });
@@ -176,7 +191,7 @@ export async function executeSplitCsvImport(
     peopleAdded += 1;
   }
 
-  for (const name of preview.participantNames) {
+  for (const name of namesNeeded) {
     const person = peopleByName.get(normalizeName(name));
     if (person) await splitGroupMemberRepository.getOrCreate(groupId, person.id);
   }
@@ -195,7 +210,7 @@ export async function executeSplitCsvImport(
   }
 
   let imported = 0;
-  for (const row of preview.rows) {
+  for (const row of pendingRows) {
     if (preview.kind === 'splitwise' && row.payerAmountsByName && row.shareAmountsByName) {
       const payers = Object.entries(row.payerAmountsByName).map(([name, amountMinor]) => {
         const person = peopleByName.get(normalizeName(name));
@@ -219,6 +234,7 @@ export async function executeSplitCsvImport(
         payers,
         participantIds,
         allocation: { method: 'exact', amountsByPersonId: Object.fromEntries(shareEntries) },
+        importSourceKey: row.sourceKey,
       });
     } else {
       await splitExpenseRepository.createAtomic({
@@ -236,12 +252,13 @@ export async function executeSplitCsvImport(
           fallback.participantIds,
           fallback.allocation,
         ),
+        importSourceKey: row.sourceKey,
       });
     }
     imported += 1;
   }
 
-  return { imported, peopleAdded };
+  return { imported, peopleAdded, skippedDuplicates };
 }
 
 function parseCsv(text: string): string[][] {
@@ -343,4 +360,18 @@ function normalizeName(value: string): string {
 
 function sumValues(values: Record<string, number>): number {
   return Object.values(values).reduce((sum, value) => sum + value, 0);
+}
+
+function importSourceKey(kind: SplitCsvKind, rowNumber: number, source: string[]): string {
+  const normalized = source.map((cell) => cell.trim()).join('\u001f');
+  return `csv:${kind}:${rowNumber}:${fnv1a(normalized)}`;
+}
+
+function fnv1a(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
