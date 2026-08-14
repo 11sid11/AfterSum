@@ -17,21 +17,17 @@ import {
   defaultSplitFromDraft,
   isTripDefaultSplitValid,
   itemizedAllocation,
-  nextRecurringDate,
   resolveTripDefaultSplit,
-  snapshotForMethod,
 } from '@modules/split/domain/entry';
+import {
+  allocationSnapshotToFormValues,
+  formValuesToAllocationSnapshot,
+  makeRecurringTemplate,
+} from '@modules/split/domain/expenseDraft';
 import type { SplitAllocationInput } from '@modules/split/domain/validation';
 import { todayDateOnly, formatHumanDate } from '@shared/dates';
-import { currencyDecimals, decimalToMinor, minorToDecimal } from '@shared/money';
-import { prefixedId } from '@shared/ids';
-import type {
-  SplitAllocationSnapshot,
-  SplitExpenseCategory,
-  SplitItem,
-  SplitMethod,
-  SplitRecurringTemplate,
-} from '@db/schema';
+import { currencyDecimals, minorToDecimal } from '@shared/money';
+import type { SplitExpenseCategory, SplitItem, SplitMethod } from '@db/schema';
 
 export function SplitGroupAddPage() {
   const { groupId } = useParams({ from: '/split/group/$groupId/add' });
@@ -63,7 +59,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
   const [amountMinor, setAmountMinor] = useState(0);
   const [date, setDate] = useState(todayDateOnly());
   const [note, setNote] = useState('');
-  const [category, setCategory] = useState<SplitExpenseCategory>('food');
+  const [category, setCategory] = useState<SplitExpenseCategory>('other');
   const [method, setMethod] = useState<SplitMethod>('equal');
   const [payerId, setPayerId] = useState<string>();
   const [participantIds, setParticipantIds] = useState<string[]>([]);
@@ -104,7 +100,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
     setPayerId(resolved.payerPersonId);
     setParticipantIds(resolved.participantIds);
     setMethod(resolved.splitMethod);
-    setAllocation(rawAllocationFromSnapshot(resolved.splitMethod, resolved.allocation, group.currency));
+    setAllocation(allocationSnapshotToFormValues(resolved.splitMethod, resolved.allocation, group.currency));
     setOriginalCurrency(group.currency === 'USD' ? 'EUR' : 'USD');
     setInitialized(true);
 
@@ -122,8 +118,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
     if (!Number.isFinite(rate) || rate <= 0) return;
     const originalScale = 10 ** currencyDecimals(originalCurrency);
     const baseScale = 10 ** currencyDecimals(group.currency);
-    const converted = Math.round((originalAmountMinor / originalScale) * rate * baseScale);
-    setAmountMinor(converted);
+    setAmountMinor(Math.round((originalAmountMinor / originalScale) * rate * baseScale));
   }, [exchangeRate, foreignEnabled, group, originalAmountMinor, originalCurrency]);
 
   if (!group || !people || !self || members === undefined) {
@@ -131,7 +126,6 @@ function ExpenseForm({ groupId }: { groupId: string }) {
   }
 
   const payer = tripPeople.find((person) => person.id === payerId);
-  const categoryMeta = getSplitCategoryMeta(category);
   const splitLabel = itemized
     ? 'Itemized'
     : method === 'equal'
@@ -141,7 +135,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
         : method === 'percentage'
           ? 'Percent'
           : 'Shares';
-  const detailBits = [categoryMeta.label, formatHumanDate(date)];
+  const detailBits = [getSplitCategoryMeta(category).label, formatHumanDate(date)];
   if (repeat !== 'never') detailBits.push(repeat[0]!.toUpperCase() + repeat.slice(1));
 
   const closeToTrip = () => navigate({ to: '/split/group/$groupId', params: { groupId } });
@@ -164,16 +158,17 @@ function ExpenseForm({ groupId }: { groupId: string }) {
         if (items.length === 0) throw new Error('Add at least one item or remove itemization.');
         if (items.some((item) => !item.title.trim())) throw new Error('Give every item a name.');
         const result = itemizedAllocation(items);
-        if (result.totalAmountMinor !== amountMinor) {
-          throw new Error('Item amounts must add up to the expense total.');
-        }
+        if (result.totalAmountMinor !== amountMinor) throw new Error('Item amounts must add up to the expense total.');
         effectiveParticipantIds = result.participantIds;
         effectiveMethod = 'exact';
         effectiveAllocation = { method: 'exact', amountsByPersonId: result.amountsByPersonId };
       } else {
         if (participantIds.length === 0) throw new Error('Choose at least one person to split with.');
-        const snapshot = snapshotFromRaw(method, participantIds, allocation, group.currency);
-        effectiveAllocation = allocationSnapshotToInput(method, participantIds, snapshot);
+        effectiveAllocation = allocationSnapshotToInput(
+          method,
+          participantIds,
+          formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency),
+        );
       }
 
       if (foreignEnabled) {
@@ -189,6 +184,9 @@ function ExpenseForm({ groupId }: { groupId: string }) {
 
     setSubmitting(true);
     try {
+      const cleanItems = itemized
+        ? items.map((item) => ({ ...item, title: item.title.trim() }))
+        : undefined;
       await splitExpenseRepository.createAtomic({
         groupId,
         title: cleanTitle,
@@ -204,17 +202,16 @@ function ExpenseForm({ groupId }: { groupId: string }) {
         originalCurrency: foreignEnabled ? originalCurrency : undefined,
         originalAmountMinor: foreignEnabled ? originalAmountMinor : undefined,
         exchangeRate: foreignEnabled ? Number(exchangeRate) : undefined,
-        items: itemized ? items.map((item) => ({ ...item, title: item.title.trim() })) : undefined,
+        items: cleanItems,
       });
 
       try {
         if (rememberDefault && !itemized && method !== 'exact') {
-          const snapshot = snapshotFromRaw(method, participantIds, allocation, group.currency);
           const saved = defaultSplitFromDraft({
             payerPersonId: payerId,
             participantIds,
             splitMethod: method,
-            allocation: snapshot,
+            allocation: formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency),
           });
           if (saved) await splitGroupRepository.setDefaultSplit(groupId, saved);
         }
@@ -223,8 +220,8 @@ function ExpenseForm({ groupId }: { groupId: string }) {
           const recurringAllocation =
             itemized && effectiveAllocation.method === 'exact'
               ? { exactAmountsByPersonId: effectiveAllocation.amountsByPersonId }
-              : snapshotFromRaw(method, participantIds, allocation, group.currency);
-          const template = buildRecurringTemplate({
+              : formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency);
+          const template = makeRecurringTemplate({
             title: cleanTitle,
             amountMinor,
             category,
@@ -235,7 +232,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
             note: note.trim() || undefined,
             frequency: repeat,
             date,
-            items: itemized ? items.map((item) => ({ ...item, title: item.title.trim() })) : undefined,
+            items: cleanItems,
           });
           await splitGroupRepository.setRecurringTemplates(groupId, [
             ...(group.recurringTemplates ?? []),
@@ -263,12 +260,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
   return (
     <form className="mx-auto max-w-xl space-y-5 pb-24" onSubmit={save}>
       <header className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={closeToTrip}
-          className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-          aria-label="Back to trip"
-        >
+        <button type="button" onClick={closeToTrip} className="icon-button" aria-label="Back to trip">
           <ArrowLeft size={18} />
         </button>
         <div className="min-w-0">
@@ -300,21 +292,12 @@ function ExpenseForm({ groupId }: { groupId: string }) {
                 <p className="text-xs text-slate-500">Calculated from {originalCurrency} using your manual rate.</p>
               </div>
             ) : (
-              <MoneyInput
-                label="Amount"
-                currency={group.currency}
-                value={amountMinor}
-                onChange={setAmountMinor}
-              />
+              <MoneyInput label="Amount" currency={group.currency} value={amountMinor} onChange={setAmountMinor} />
             )}
           </Card>
 
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setSplitSheetOpen(true)}
-              className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900"
-            >
+            <button type="button" onClick={() => setSplitSheetOpen(true)} className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
                   {payer?.isSelf ? 'You' : payer?.name ?? 'Choose payer'} paid · {splitLabel} · {itemized ? `${items.length} item${items.length === 1 ? '' : 's'}` : `${participantIds.length} people`}
@@ -324,11 +307,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
               <ChevronRight size={18} className="shrink-0 text-slate-400" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => setDetailsSheetOpen(true)}
-              className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900"
-            >
+            <button type="button" onClick={() => setDetailsSheetOpen(true)} className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{detailBits.join(' · ')}</p>
                 <p className="mt-0.5 truncate text-xs text-slate-500">
@@ -347,21 +326,14 @@ function ExpenseForm({ groupId }: { groupId: string }) {
             <Card className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-slate-500">Original payment</p>
-                <p className="truncate text-sm font-semibold">
-                  <Money value={{ amountMinor: originalAmountMinor, currency: originalCurrency }} />
-                </p>
+                <p className="truncate text-sm font-semibold"><Money value={{ amountMinor: originalAmountMinor, currency: originalCurrency }} /></p>
               </div>
               <p className="text-right text-xs text-slate-500">1 {originalCurrency} = {exchangeRate || '—'} {group.currency}</p>
             </Card>
           )}
 
-          {error && (
-            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>
-          )}
-
-          <Button type="submit" block size="lg" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save expense'}
-          </Button>
+          {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
+          <Button type="submit" block size="lg" disabled={submitting}>{submitting ? 'Saving…' : 'Save expense'}</Button>
         </>
       )}
 
@@ -417,89 +389,4 @@ function ExpenseForm({ groupId }: { groupId: string }) {
       />
     </form>
   );
-}
-
-function rawAllocationFromSnapshot(
-  method: SplitMethod,
-  snapshot: SplitAllocationSnapshot,
-  currency: string,
-): Record<string, string> {
-  if (method === 'equal') return {};
-  if (method === 'exact') {
-    return Object.fromEntries(
-      Object.entries(snapshot.exactAmountsByPersonId ?? {}).map(([id, amount]) => [id, String(minorToDecimal(amount, currency))]),
-    );
-  }
-  if (method === 'percentage') {
-    return Object.fromEntries(
-      Object.entries(snapshot.percentagesByPersonId ?? {}).map(([id, value]) => [id, String(value)]),
-    );
-  }
-  return Object.fromEntries(
-    Object.entries(snapshot.sharesByPersonId ?? {}).map(([id, value]) => [id, String(value)]),
-  );
-}
-
-function snapshotFromRaw(
-  method: SplitMethod,
-  participantIds: string[],
-  allocation: Record<string, string>,
-  currency: string,
-): SplitAllocationSnapshot {
-  if (method === 'equal') return {};
-  if (method === 'exact') {
-    const exactAmountsByPersonId: Record<string, number> = {};
-    for (const id of participantIds) {
-      const raw = allocation[id] ?? '';
-      if (!raw.trim()) throw new Error('Enter an exact amount for everyone selected.');
-      exactAmountsByPersonId[id] = decimalToMinor(raw, currency);
-    }
-    return { exactAmountsByPersonId };
-  }
-  if (method === 'percentage') {
-    const percentagesByPersonId: Record<string, number> = {};
-    for (const id of participantIds) {
-      const value = Number(allocation[id] ?? '');
-      if (!Number.isFinite(value) || value < 0) throw new Error('Enter a valid percentage for everyone selected.');
-      percentagesByPersonId[id] = value;
-    }
-    return { percentagesByPersonId };
-  }
-  const sharesByPersonId: Record<string, number> = {};
-  for (const id of participantIds) {
-    const value = Number(allocation[id] ?? '');
-    if (!Number.isInteger(value) || value <= 0) throw new Error('Shares must be positive whole numbers.');
-    sharesByPersonId[id] = value;
-  }
-  return { sharesByPersonId };
-}
-
-function buildRecurringTemplate(input: {
-  title: string;
-  amountMinor: number;
-  category: SplitExpenseCategory;
-  payerPersonId: string;
-  participantIds: string[];
-  splitMethod: SplitMethod;
-  allocation: SplitAllocationSnapshot;
-  note?: string;
-  frequency: Exclude<SplitRepeatValue, 'never'>;
-  date: string;
-  items?: SplitItem[];
-}): SplitRecurringTemplate {
-  return {
-    id: prefixedId('rec'),
-    title: input.title,
-    amountMinor: input.amountMinor,
-    category: input.category,
-    payerPersonId: input.payerPersonId,
-    participantIds: [...input.participantIds],
-    splitMethod: input.splitMethod,
-    allocation: snapshotForMethod(input.splitMethod, input.allocation),
-    note: input.note,
-    frequency: input.frequency,
-    nextDate: nextRecurringDate(input.date, input.frequency),
-    enabled: true,
-    items: input.items,
-  };
 }
