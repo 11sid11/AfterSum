@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -51,6 +52,10 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
   const nextId = useRef(1);
   const timeout = useRef<number | undefined>();
 
+  useEffect(() => () => {
+    if (timeout.current !== undefined) window.clearTimeout(timeout.current);
+  }, []);
+
   const celebrate = useCallback((options: CelebrationOptions = {}) => {
     if (typeof window === 'undefined') return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -59,10 +64,11 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     const id = nextId.current++;
     const message = options.message ?? (kind === 'settled' ? 'All settled' : 'Added');
 
-    window.clearTimeout(timeout.current);
+    if (timeout.current !== undefined) window.clearTimeout(timeout.current);
     setEvent({ id, kind, message });
     timeout.current = window.setTimeout(() => {
       setEvent((current) => (current?.id === id ? null : current));
+      timeout.current = undefined;
     }, 1900);
   }, []);
 
