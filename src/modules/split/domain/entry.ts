@@ -15,6 +15,35 @@ export interface ResolvedSplitDraft {
   allocation: SplitAllocationSnapshot;
 }
 
+export function isTripDefaultSplitValid(
+  saved: SplitDefaultSplit | undefined,
+  activePersonIds: string[],
+): boolean {
+  if (!saved || saved.participantIds.length === 0) return false;
+  const active = new Set(activePersonIds);
+  if (saved.participantIds.some((id) => !active.has(id))) return false;
+  if (saved.payerPersonId && !active.has(saved.payerPersonId)) return false;
+
+  if (saved.splitMethod === 'percentage') {
+    const values = saved.allocation?.percentagesByPersonId;
+    if (!values || saved.participantIds.some((id) => !Number.isFinite(values[id]))) return false;
+    const total = saved.participantIds.reduce((sum, id) => sum + (values[id] ?? 0), 0);
+    return Math.abs(total - 100) <= 0.0001;
+  }
+
+  if (saved.splitMethod === 'shares') {
+    const values = saved.allocation?.sharesByPersonId;
+    return Boolean(
+      values &&
+        saved.participantIds.every(
+          (id) => Number.isInteger(values[id]) && (values[id] ?? 0) > 0,
+        ),
+    );
+  }
+
+  return saved.splitMethod === 'equal';
+}
+
 export function resolveTripDefaultSplit(input: {
   saved?: SplitDefaultSplit;
   activePersonIds: string[];
@@ -33,25 +62,10 @@ export function resolveTripDefaultSplit(input: {
   };
 
   const saved = input.saved;
-  if (!saved || saved.participantIds.length === 0) return fallback;
-  if (saved.participantIds.some((id) => !active.has(id))) return fallback;
+  if (!isTripDefaultSplitValid(saved, input.activePersonIds) || !saved) return fallback;
 
-  const payer = saved.payerPersonId && active.has(saved.payerPersonId) ? saved.payerPersonId : fallbackPayer;
+  const payer = saved.payerPersonId ?? fallbackPayer;
   if (!payer) return fallback;
-
-  if (saved.splitMethod === 'percentage') {
-    const values = saved.allocation?.percentagesByPersonId;
-    if (!values || saved.participantIds.some((id) => !Number.isFinite(values[id]))) return fallback;
-    const total = saved.participantIds.reduce((sum, id) => sum + (values[id] ?? 0), 0);
-    if (Math.abs(total - 100) > 0.0001) return fallback;
-  }
-
-  if (saved.splitMethod === 'shares') {
-    const values = saved.allocation?.sharesByPersonId;
-    if (!values || saved.participantIds.some((id) => !Number.isInteger(values[id]) || (values[id] ?? 0) <= 0)) {
-      return fallback;
-    }
-  }
 
   return {
     payerPersonId: payer,
