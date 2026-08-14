@@ -36,19 +36,23 @@ export function TransactionListItem({ transaction, to = '/track/transaction/$tra
     <Link
       to={to}
       params={{ transactionId: transaction.id }}
-      className="group flex min-w-0 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/45 sm:px-5"
+      className="interactive-row group flex min-w-0 items-center gap-3 px-4 py-3.5 dark:hover:bg-slate-800/[0.45] sm:px-5"
     >
-      <div className={isExpense ? 'grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300' : 'grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300'}>
+      <div className={isExpense
+        ? 'grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-rose-500/[0.08] text-rose-600 dark:text-rose-300'
+        : 'grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-300'}>
         <Icon size={16} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{transaction.title}</p>
-        <p className="mt-0.5 truncate text-xs text-slate-500">
+        <p className="truncate text-sm font-medium tracking-[-0.01em] text-slate-900 dark:text-slate-100">{transaction.title}</p>
+        <p className="mt-0.5 truncate text-[11px] text-slate-500">
           {categoryName} · {formatHumanDate(transaction.date)}
           {transaction.paymentMethod ? ` · ${transaction.paymentMethod.toUpperCase()}` : ''}
         </p>
       </div>
-      <div className={isExpense ? 'shrink-0 text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-300' : 'shrink-0 text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-300'}>
+      <div className={isExpense
+        ? 'shrink-0 text-sm font-semibold tabular-nums text-rose-600 dark:text-rose-300'
+        : 'shrink-0 text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-300'}>
         <Money value={{ amountMinor: transaction.amountMinor, currency: transaction.currency }} hide={hide} signed />
       </div>
     </Link>
