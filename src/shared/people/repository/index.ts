@@ -8,7 +8,12 @@
 
 import { getDB } from '@db/database';
 import { repoCreate, repoUpdate, repoSoftDelete, repoRestore, type CreateInput } from '@db/repositories/base';
-import { PersonSchema, type PersonInput } from '../domain';
+import {
+  PersonSchema,
+  normalizePersonName,
+  personNameKey,
+  type PersonInput,
+} from '../domain';
 import { SELF_PERSON_ID } from '@db/seed';
 import { nowISO } from '@shared/dates';
 import type { Person } from '@db/schema';
@@ -16,10 +21,22 @@ import type { Person } from '@db/schema';
 function clean(input: Partial<PersonInput>): Partial<PersonInput> {
   return {
     ...input,
+    name: input.name === undefined ? undefined : normalizePersonName(input.name),
     phone: input.phone || undefined,
     email: input.email || undefined,
     note: input.note || undefined,
   };
+}
+
+async function assertUniqueActiveName(name: string, exceptId?: string): Promise<void> {
+  const key = personNameKey(name);
+  const duplicate = (await getDB().people.toArray()).find(
+    (person) => !person.deletedAt && person.id !== exceptId && personNameKey(person.name) === key,
+  );
+
+  if (duplicate) {
+    throw new Error(`A person named “${duplicate.name}” already exists. Choose a unique name.`);
+  }
 }
 
 export const personRepository = {
@@ -40,14 +57,15 @@ export const personRepository = {
   },
 
   async create(input: PersonInput): Promise<Person> {
-    const parsed = PersonSchema.parse(input);
-    const cleaned = clean(parsed);
-    return repoCreate<Person>(getDB().people, cleaned as CreateInput<Person>);
+    const parsed = PersonSchema.parse(clean(input));
+    await assertUniqueActiveName(parsed.name);
+    return repoCreate<Person>(getDB().people, parsed as CreateInput<Person>);
   },
 
   async update(id: string, patch: Partial<PersonInput>): Promise<Person> {
-    const parsed = PersonSchema.partial().parse(patch);
-    return repoUpdate<Person>(getDB().people, id, clean(parsed));
+    const parsed = PersonSchema.partial().parse(clean(patch));
+    if (parsed.name !== undefined) await assertUniqueActiveName(parsed.name, id);
+    return repoUpdate<Person>(getDB().people, id, parsed);
   },
 
   async softDelete(id: string): Promise<void> {
@@ -64,6 +82,9 @@ export const personRepository = {
   },
 
   async restore(id: string): Promise<void> {
+    const person = await getDB().people.get(id);
+    if (!person) return;
+    await assertUniqueActiveName(person.name, id);
     return repoRestore(getDB().people, id);
   },
 
