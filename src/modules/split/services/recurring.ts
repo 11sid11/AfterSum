@@ -5,7 +5,8 @@ import { splitGroupRepository } from '../repositories/splitGroupRepository';
 import { allocationSnapshotToInput, itemizedAllocation, nextRecurringDate } from '../domain/entry';
 import { todayDateOnly } from '@shared/dates';
 
-const MAX_OCCURRENCES_PER_PASS = 36;
+// Enough to catch up five years of weekly entries in one trip open without an unbounded loop.
+const MAX_OCCURRENCES_PER_PASS = 260;
 
 export interface RecurringMaterializeResult {
   created: number;
@@ -102,7 +103,7 @@ export async function materializeDueSplitRecurring(
         occurrenceKeys.add(key);
         created += 1;
       }
-      nextDate = nextRecurringDate(nextDate, template.frequency);
+      nextDate = nextRecurringDate(nextDate, template.frequency, template.anchorDate);
       processed += 1;
       changed = true;
     }
