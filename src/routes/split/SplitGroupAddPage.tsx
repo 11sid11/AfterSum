@@ -15,11 +15,13 @@ import { getSplitCategoryMeta } from '@modules/split/domain/categories';
 import {
   allocationSnapshotToInput,
   defaultSplitFromDraft,
+  isTripDefaultSplitValid,
   itemizedAllocation,
   nextRecurringDate,
   resolveTripDefaultSplit,
   snapshotForMethod,
 } from '@modules/split/domain/entry';
+import type { SplitAllocationInput } from '@modules/split/domain/validation';
 import { todayDateOnly, formatHumanDate } from '@shared/dates';
 import { currencyDecimals, decimalToMinor, minorToDecimal } from '@shared/money';
 import { prefixedId } from '@shared/ids';
@@ -91,18 +93,28 @@ function ExpenseForm({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     if (!group || !self || tripPeople.length === 0 || initialized) return;
+    const activePersonIds = tripPeople.map((person) => person.id);
+    const savedDefaultIsValid = isTripDefaultSplitValid(group.defaultSplit, activePersonIds);
     const resolved = resolveTripDefaultSplit({
       saved: group.defaultSplit,
-      activePersonIds: tripPeople.map((person) => person.id),
+      activePersonIds,
       preferredPayerId: self.id,
     });
+
     setPayerId(resolved.payerPersonId);
     setParticipantIds(resolved.participantIds);
     setMethod(resolved.splitMethod);
     setAllocation(rawAllocationFromSnapshot(resolved.splitMethod, resolved.allocation, group.currency));
     setOriginalCurrency(group.currency === 'USD' ? 'EUR' : 'USD');
     setInitialized(true);
-  }, [group, initialized, self, tripPeople]);
+
+    if (group.defaultSplit && !savedDefaultIsValid) {
+      void splitGroupRepository
+        .setDefaultSplit(groupId, undefined)
+        .then(() => toast.show('Saved split reset because trip participants changed.'))
+        .catch(() => undefined);
+    }
+  }, [group, groupId, initialized, self, toast, tripPeople]);
 
   useEffect(() => {
     if (!group || !foreignEnabled || originalAmountMinor <= 0) return;
@@ -145,7 +157,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
 
     let effectiveParticipantIds = participantIds;
     let effectiveMethod = method;
-    let effectiveAllocation;
+    let effectiveAllocation: SplitAllocationInput;
 
     try {
       if (itemized) {
@@ -157,7 +169,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
         }
         effectiveParticipantIds = result.participantIds;
         effectiveMethod = 'exact';
-        effectiveAllocation = { method: 'exact' as const, amountsByPersonId: result.amountsByPersonId };
+        effectiveAllocation = { method: 'exact', amountsByPersonId: result.amountsByPersonId };
       } else {
         if (participantIds.length === 0) throw new Error('Choose at least one person to split with.');
         const snapshot = snapshotFromRaw(method, participantIds, allocation, group.currency);
@@ -208,6 +220,10 @@ function ExpenseForm({ groupId }: { groupId: string }) {
         }
 
         if (repeat !== 'never') {
+          const recurringAllocation =
+            itemized && effectiveAllocation.method === 'exact'
+              ? { exactAmountsByPersonId: effectiveAllocation.amountsByPersonId }
+              : snapshotFromRaw(method, participantIds, allocation, group.currency);
           const template = buildRecurringTemplate({
             title: cleanTitle,
             amountMinor,
@@ -215,9 +231,7 @@ function ExpenseForm({ groupId }: { groupId: string }) {
             payerPersonId: payerId,
             participantIds: effectiveParticipantIds,
             splitMethod: effectiveMethod,
-            allocation: itemized
-              ? { exactAmountsByPersonId: (effectiveAllocation as { method: 'exact'; amountsByPersonId: Record<string, number> }).amountsByPersonId }
-              : snapshotFromRaw(method, participantIds, allocation, group.currency),
+            allocation: recurringAllocation,
             note: note.trim() || undefined,
             frequency: repeat,
             date,
@@ -277,13 +291,22 @@ function ExpenseForm({ groupId }: { groupId: string }) {
               required
               maxLength={200}
             />
-            <MoneyInput
-              label={foreignEnabled ? `Trip amount · ${group.currency}` : 'Amount'}
-              currency={group.currency}
-              value={amountMinor}
-              onChange={setAmountMinor}
-              hint={foreignEnabled ? `Calculated from ${originalCurrency} using your manual rate.` : undefined}
-            />
+            {foreignEnabled ? (
+              <div className="space-y-1">
+                <p className="label">Trip amount · {group.currency}</p>
+                <div className="input flex h-12 items-center px-3 text-base font-semibold tabular-nums">
+                  <Money value={{ amountMinor, currency: group.currency }} />
+                </div>
+                <p className="text-xs text-slate-500">Calculated from {originalCurrency} using your manual rate.</p>
+              </div>
+            ) : (
+              <MoneyInput
+                label="Amount"
+                currency={group.currency}
+                value={amountMinor}
+                onChange={setAmountMinor}
+              />
+            )}
           </Card>
 
           <div className="space-y-2">
