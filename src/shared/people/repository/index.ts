@@ -19,13 +19,11 @@ import { nowISO } from '@shared/dates';
 import type { Person } from '@db/schema';
 
 function clean(input: Partial<PersonInput>): Partial<PersonInput> {
-  const cleaned: Partial<PersonInput> = {
-    ...input,
-    phone: input.phone || undefined,
-    email: input.email || undefined,
-    note: input.note || undefined,
-  };
+  const cleaned: Partial<PersonInput> = { ...input };
   if (input.name !== undefined) cleaned.name = normalizePersonName(input.name);
+  if (Object.hasOwn(input, 'phone')) cleaned.phone = input.phone || undefined;
+  if (Object.hasOwn(input, 'email')) cleaned.email = input.email || undefined;
+  if (Object.hasOwn(input, 'note')) cleaned.note = input.note || undefined;
   return cleaned;
 }
 
