@@ -143,13 +143,26 @@ export function itemizedAllocation(items: SplitItem[]): {
   };
 }
 
+/**
+ * Advance a date-only recurrence without JavaScript's end-of-month overflow.
+ * Jan 31 monthly becomes Feb 28/29, and Feb 29 yearly becomes Feb 28 on
+ * non-leap years. The function stays local-time/date-only so timezone offsets
+ * never move an occurrence to the previous or next calendar day.
+ */
 export function nextRecurringDate(dateOnly: string, frequency: SplitRecurringFrequency): string {
   const [year, month, day] = dateOnly.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  if (frequency === 'weekly') date.setDate(date.getDate() + 7);
-  else if (frequency === 'monthly') date.setMonth(date.getMonth() + 1);
-  else date.setFullYear(date.getFullYear() + 1);
-  return localDateOnly(date);
+  if (!year || !month || !day) throw new Error(`Invalid recurring date: ${dateOnly}`);
+
+  if (frequency === 'weekly') {
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + 7);
+    return localDateOnly(date);
+  }
+
+  const targetYear = frequency === 'yearly' ? year + 1 : month === 12 ? year + 1 : year;
+  const targetMonth = frequency === 'monthly' ? (month === 12 ? 1 : month + 1) : month;
+  const clampedDay = Math.min(day, daysInMonth(targetYear, targetMonth));
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
 }
 
 export function localDateOnly(date: Date): string {
@@ -157,4 +170,8 @@ export function localDateOnly(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
 }
