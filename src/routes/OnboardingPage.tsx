@@ -2,7 +2,7 @@
  * Short first-run onboarding. No account or bank connection is required.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button, Card, CurrencyPicker, Input, Toggle } from '@components/ui';
 import { settingsRepository } from '@shared/settings/repository';
@@ -18,18 +18,25 @@ export function OnboardingPage() {
   const [name, setName] = useState('Me');
   const [persist, setPersist] = useState(false);
   const [busy, setBusy] = useState(false);
+  const finishStarted = useRef(false);
 
   const next = () => setStep((s) => (s + 1) as Step);
   const back = () => setStep((s) => (s - 1) as Step);
 
   const finish = async () => {
+    if (finishStarted.current) return;
+
+    finishStarted.current = true;
     setBusy(true);
     try {
       await settingsRepository.update({ defaultCurrency: currency });
       await personRepository.update('self', { name: name.trim() });
       if (persist) await persistBrowserStorage();
       await settingsRepository.setOnboardingComplete(true);
-      navigate({ to: '/overview' });
+      await navigate({ to: '/overview', replace: true });
+    } catch (error) {
+      finishStarted.current = false;
+      throw error;
     } finally {
       setBusy(false);
     }
