@@ -181,14 +181,21 @@ export function CurrencyPicker({
 
       <Modal open={open} onClose={() => setOpen(false)} title="Choose currency" className="max-w-md">
         <div className="space-y-3">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search currency or code"
-            aria-label="Search currency or code"
-            leadingIcon={<Search size={16} />}
-            autoFocus
-          />
+          <div className="relative">
+            <Search
+              size={16}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search currency or code"
+              aria-label="Search currency or code"
+              className="pl-9"
+              autoFocus
+            />
+          </div>
           <div className="max-h-[50vh] space-y-1 overflow-y-auto">
             {filtered.map((currency) => (
               <button
