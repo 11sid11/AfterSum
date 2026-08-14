@@ -104,21 +104,8 @@ export interface TrackRecurringRule extends BaseEntity {
 
 // ---------- Split ----------
 
-export interface SplitGroup extends BaseEntity {
-  name: string;
-  description?: string;
-  currency: CurrencyCode;
-  archived: boolean;
-}
-
-export interface SplitGroupMember extends BaseEntity {
-  groupId: string;
-  personId: string;
-  active: boolean;
-  joinedAt: string;
-}
-
 export type SplitMethod = 'equal' | 'exact' | 'percentage' | 'shares';
+export type SplitRecurringFrequency = 'weekly' | 'monthly' | 'yearly';
 
 /** Lightweight trip-expense categories, matching the focused Trip Split workflow. */
 export type SplitExpenseCategory =
@@ -128,6 +115,83 @@ export type SplitExpenseCategory =
   | 'fun'
   | 'shopping'
   | 'other';
+
+/**
+ * Optional allocation snapshot used by saved defaults and recurring templates.
+ * Amounts are integer minor units; percentages are 0..100; shares are positive integers.
+ */
+export interface SplitAllocationSnapshot {
+  exactAmountsByPersonId?: Record<string, number>;
+  percentagesByPersonId?: Record<string, number>;
+  sharesByPersonId?: Record<string, number>;
+}
+
+/**
+ * Per-trip convenience only. This is not financial history.
+ * Exact splits are intentionally not saved as defaults because they depend on a specific total.
+ */
+export interface SplitDefaultSplit {
+  payerPersonId?: string;
+  participantIds: string[];
+  splitMethod: Exclude<SplitMethod, 'exact'>;
+  allocation?: SplitAllocationSnapshot;
+}
+
+/**
+ * Manual itemization metadata. Final accounting still collapses into SplitShare rows,
+ * so the existing balance engine remains the single source of truth.
+ */
+export interface SplitItem {
+  id: string;
+  title: string;
+  amountMinor: number;
+  participantIds: string[];
+}
+
+/**
+ * Local recurring instruction. Occurrences become ordinary SplitExpense events.
+ * `anchorDate` preserves the user's original calendar intent while `nextDate`
+ * tracks the next occurrence that has not yet been materialized.
+ */
+export interface SplitRecurringTemplate {
+  id: string;
+  title: string;
+  amountMinor: number;
+  category?: SplitExpenseCategory;
+  payerPersonId: string;
+  participantIds: string[];
+  splitMethod: SplitMethod;
+  allocation?: SplitAllocationSnapshot;
+  note?: string;
+  frequency: SplitRecurringFrequency;
+  /** Original YYYY-MM-DD used to preserve day-of-month/year recurrence semantics. */
+  anchorDate: string;
+  /** Next YYYY-MM-DD occurrence that has not yet been generated. */
+  nextDate: string;
+  enabled: boolean;
+  originalCurrency?: CurrencyCode;
+  originalAmountMinor?: number;
+  exchangeRate?: number;
+  items?: SplitItem[];
+}
+
+export interface SplitGroup extends BaseEntity {
+  name: string;
+  description?: string;
+  currency: CurrencyCode;
+  archived: boolean;
+  /** Optional per-trip entry defaults. Safe to remove without changing financial history. */
+  defaultSplit?: SplitDefaultSplit;
+  /** Local recurring instructions; generated expenses remain the accounting source of truth. */
+  recurringTemplates?: SplitRecurringTemplate[];
+}
+
+export interface SplitGroupMember extends BaseEntity {
+  groupId: string;
+  personId: string;
+  active: boolean;
+  joinedAt: string;
+}
 
 export interface SplitExpense extends BaseEntity {
   groupId: string;
@@ -140,6 +204,19 @@ export interface SplitExpense extends BaseEntity {
   /** Optional for backward compatibility with expenses created before categories existed. */
   category?: SplitExpenseCategory;
   note?: string;
+  /** Optional reference to the amount actually paid before manual conversion to trip currency. */
+  originalCurrency?: CurrencyCode;
+  originalAmountMinor?: number;
+  /** Base-currency units per one original-currency unit. */
+  exchangeRate?: number;
+  /** Optional manual itemization metadata; balances still come from SplitShare rows. */
+  items?: SplitItem[];
+  /** Present only for materialized recurring occurrences. */
+  recurrenceTemplateId?: string;
+  /** YYYY-MM-DD occurrence key used for idempotency. */
+  recurrenceOccurrenceDate?: string;
+  /** Stable local source key used to skip duplicate CSV rows on re-import. */
+  importSourceKey?: string;
 }
 
 export interface SplitPayer extends BaseEntity {

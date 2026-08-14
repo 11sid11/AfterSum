@@ -1,17 +1,33 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, DateInput, Input, MoneyInput, Spinner, Textarea, useToast } from '@components/ui';
+import { ArrowLeft, ChevronRight, Repeat2 } from 'lucide-react';
+import { Button, Card, Input, Money, MoneyInput, Spinner, useToast } from '@components/ui';
 import { useSplitGroup, useSplitGroupMembers } from '@modules/split/queries';
 import { usePeople, useSelf } from '@shared/people/queries';
 import { splitExpenseRepository } from '@modules/split/repositories/splitExpenseRepository';
-import { SplitMethodSelector } from '@modules/split/components/SplitMethodSelector';
-import { SplitAllocationEditor } from '@modules/split/components/SplitAllocationEditor';
-import { SplitCategoryIcon } from '@modules/split/components/SplitCategoryIcon';
-import { SPLIT_CATEGORIES } from '@modules/split/domain/categories';
-import { todayDateOnly } from '@shared/dates';
-import { decimalToMinor } from '@shared/money';
-import type { SplitExpenseCategory, SplitMethod } from '@db/schema';
-import { ArrowLeft, Check } from 'lucide-react';
+import { splitGroupRepository } from '@modules/split/repositories/splitGroupRepository';
+import { SplitDetailsSheet } from '@modules/split/components/SplitDetailsSheet';
+import {
+  ExpenseDetailsSheet,
+  type SplitRepeatValue,
+} from '@modules/split/components/ExpenseDetailsSheet';
+import { getSplitCategoryMeta } from '@modules/split/domain/categories';
+import {
+  allocationSnapshotToInput,
+  defaultSplitFromDraft,
+  isTripDefaultSplitValid,
+  itemizedAllocation,
+  resolveTripDefaultSplit,
+} from '@modules/split/domain/entry';
+import {
+  allocationSnapshotToFormValues,
+  formValuesToAllocationSnapshot,
+  makeRecurringTemplate,
+} from '@modules/split/domain/expenseDraft';
+import type { SplitAllocationInput } from '@modules/split/domain/validation';
+import { todayDateOnly, formatHumanDate } from '@shared/dates';
+import { currencyDecimals, minorToDecimal } from '@shared/money';
+import type { SplitExpenseCategory, SplitItem, SplitMethod } from '@db/schema';
 
 export function SplitGroupAddPage() {
   const { groupId } = useParams({ from: '/split/group/$groupId/add' });
@@ -28,25 +44,36 @@ export function SplitGroupAddPage() {
     );
   }
 
-  return <ExpenseForm groupId={groupId} groupName={group.name} currency={group.currency} />;
+  return <ExpenseForm groupId={groupId} />;
 }
 
-function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupName: string; currency: string }) {
+function ExpenseForm({ groupId }: { groupId: string }) {
   const navigate = useNavigate();
+  const group = useSplitGroup(groupId);
   const people = usePeople();
   const self = useSelf();
   const members = useSplitGroupMembers(groupId, true);
   const toast = useToast();
 
   const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState(0);
+  const [amountMinor, setAmountMinor] = useState(0);
   const [date, setDate] = useState(todayDateOnly());
   const [note, setNote] = useState('');
-  const [category, setCategory] = useState<SplitExpenseCategory>('food');
+  const [category, setCategory] = useState<SplitExpenseCategory>('other');
   const [method, setMethod] = useState<SplitMethod>('equal');
   const [payerId, setPayerId] = useState<string>();
   const [participantIds, setParticipantIds] = useState<string[]>([]);
   const [allocation, setAllocation] = useState<Record<string, string>>({});
+  const [rememberDefault, setRememberDefault] = useState(false);
+  const [repeat, setRepeat] = useState<SplitRepeatValue>('never');
+  const [foreignEnabled, setForeignEnabled] = useState(false);
+  const [originalCurrency, setOriginalCurrency] = useState('USD');
+  const [originalAmountMinor, setOriginalAmountMinor] = useState(0);
+  const [exchangeRate, setExchangeRate] = useState('');
+  const [itemized, setItemized] = useState(false);
+  const [items, setItems] = useState<SplitItem[]>([]);
+  const [splitSheetOpen, setSplitSheetOpen] = useState(false);
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
@@ -61,61 +88,168 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
   );
 
   useEffect(() => {
-    if (tripPeople.length === 0) return;
-    if (!initialized) {
-      setParticipantIds(tripPeople.map((person) => person.id));
-      setInitialized(true);
-    }
-    if (!payerId || !activeIds.has(payerId)) {
-      setPayerId(self && activeIds.has(self.id) ? self.id : tripPeople[0]?.id);
-    }
-  }, [activeIds, initialized, payerId, self, tripPeople]);
-
-  if (!people || !self || members === undefined) return <div className="flex justify-center py-10"><Spinner /></div>;
-
-  const selectedPeople = tripPeople.filter((person) => participantIds.includes(person.id));
-
-  const toggleParticipant = (personId: string) => {
-    setParticipantIds((current) => {
-      const selected = current.includes(personId);
-      if (selected && current.length === 1) return current;
-      const next = selected ? current.filter((id) => id !== personId) : [...current, personId];
-      setAllocation((values) => Object.fromEntries(next.map((id) => [id, values[id] ?? ''])));
-      return next;
+    if (!group || !self || tripPeople.length === 0 || initialized) return;
+    const activePersonIds = tripPeople.map((person) => person.id);
+    const savedDefaultIsValid = isTripDefaultSplitValid(group.defaultSplit, activePersonIds);
+    const resolved = resolveTripDefaultSplit({
+      saved: group.defaultSplit,
+      activePersonIds,
+      preferredPayerId: self.id,
     });
-  };
 
-  const selectEveryone = () => {
-    const ids = tripPeople.map((person) => person.id);
-    setParticipantIds(ids);
-    setAllocation((values) => Object.fromEntries(ids.map((id) => [id, values[id] ?? ''])));
-  };
+    setPayerId(resolved.payerPersonId);
+    setParticipantIds(resolved.participantIds);
+    setMethod(resolved.splitMethod);
+    setAllocation(allocationSnapshotToFormValues(resolved.splitMethod, resolved.allocation, group.currency));
+    setOriginalCurrency(group.currency === 'USD' ? 'EUR' : 'USD');
+    setInitialized(true);
+
+    if (group.defaultSplit && !savedDefaultIsValid) {
+      void splitGroupRepository
+        .setDefaultSplit(groupId, undefined)
+        .then(() => toast.show('Saved split reset because trip participants changed.'))
+        .catch(() => undefined);
+    }
+  }, [group, groupId, initialized, self, toast, tripPeople]);
+
+  useEffect(() => {
+    if (!group || !foreignEnabled || originalAmountMinor <= 0) return;
+    const rate = Number(exchangeRate);
+    if (!Number.isFinite(rate) || rate <= 0) return;
+    const originalScale = 10 ** currencyDecimals(originalCurrency);
+    const baseScale = 10 ** currencyDecimals(group.currency);
+    setAmountMinor(Math.round((originalAmountMinor / originalScale) * rate * baseScale));
+  }, [exchangeRate, foreignEnabled, group, originalAmountMinor, originalCurrency]);
+
+  if (!group || !people || !self || members === undefined) {
+    return <div className="flex justify-center py-10"><Spinner /></div>;
+  }
+
+  const payer = tripPeople.find((person) => person.id === payerId);
+  const splitLabel = itemized
+    ? 'Itemized'
+    : method === 'equal'
+      ? 'Equal'
+      : method === 'exact'
+        ? 'Exact'
+        : method === 'percentage'
+          ? 'Percent'
+          : 'Shares';
+  const detailBits = [getSplitCategoryMeta(category).label, formatHumanDate(date)];
+  if (repeat !== 'never') detailBits.push(repeat[0]!.toUpperCase() + repeat.slice(1));
+
+  const closeToTrip = () => navigate({ to: '/split/group/$groupId', params: { groupId } });
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(undefined);
-    if (!title.trim()) return setError('What was this expense for?');
-    if (!Number.isFinite(amount) || amount <= 0) return setError('Enter an amount greater than zero.');
+
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return setError('What was this expense for?');
+    if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError('Enter an amount greater than zero.');
     if (!payerId || !activeIds.has(payerId)) return setError('Choose who paid.');
-    if (participantIds.length === 0) return setError('Choose at least one person to split with.');
+
+    let effectiveParticipantIds = participantIds;
+    let effectiveMethod = method;
+    let effectiveAllocation: SplitAllocationInput;
+
+    try {
+      if (itemized) {
+        if (items.length === 0) throw new Error('Add at least one item or remove itemization.');
+        if (items.some((item) => !item.title.trim())) throw new Error('Give every item a name.');
+        const result = itemizedAllocation(items);
+        if (result.totalAmountMinor !== amountMinor) throw new Error('Item amounts must add up to the expense total.');
+        effectiveParticipantIds = result.participantIds;
+        effectiveMethod = 'exact';
+        effectiveAllocation = { method: 'exact', amountsByPersonId: result.amountsByPersonId };
+      } else {
+        if (participantIds.length === 0) throw new Error('Choose at least one person to split with.');
+        effectiveAllocation = allocationSnapshotToInput(
+          method,
+          participantIds,
+          formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency),
+        );
+      }
+
+      if (foreignEnabled) {
+        if (originalCurrency === group.currency) throw new Error('Choose a different paid currency or turn off foreign currency.');
+        if (originalAmountMinor <= 0) throw new Error('Enter the amount that was paid in the original currency.');
+        const rate = Number(exchangeRate);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error('Enter a valid manual exchange rate.');
+        if (repeat !== 'never') throw new Error('Recurring foreign-currency expenses are not supported without a future rate source.');
+      }
+    } catch (err) {
+      return setError(err instanceof Error ? err.message : 'Check the split details.');
+    }
 
     setSubmitting(true);
     try {
+      const cleanItems = itemized
+        ? items.map((item) => ({ ...item, title: item.title.trim() }))
+        : undefined;
       await splitExpenseRepository.createAtomic({
         groupId,
-        title: title.trim(),
-        amountMinor: amount,
-        currency,
+        title: cleanTitle,
+        amountMinor,
+        currency: group.currency,
         date,
-        splitMethod: method,
+        splitMethod: effectiveMethod,
         category,
         note: note.trim() || undefined,
-        payers: [{ personId: payerId, amountMinor: amount }],
-        participantIds,
-        allocation: buildAllocationInput(method, participantIds, allocation, currency),
+        payers: [{ personId: payerId, amountMinor }],
+        participantIds: effectiveParticipantIds,
+        allocation: effectiveAllocation,
+        originalCurrency: foreignEnabled ? originalCurrency : undefined,
+        originalAmountMinor: foreignEnabled ? originalAmountMinor : undefined,
+        exchangeRate: foreignEnabled ? Number(exchangeRate) : undefined,
+        items: cleanItems,
       });
-      toast.show('Expense added', { variant: 'success' });
-      navigate({ to: '/split/group/$groupId', params: { groupId } });
+
+      try {
+        if (rememberDefault && !itemized && method !== 'exact') {
+          const saved = defaultSplitFromDraft({
+            payerPersonId: payerId,
+            participantIds,
+            splitMethod: method,
+            allocation: formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency),
+          });
+          if (saved) await splitGroupRepository.setDefaultSplit(groupId, saved);
+        }
+
+        if (repeat !== 'never') {
+          const recurringAllocation =
+            itemized && effectiveAllocation.method === 'exact'
+              ? { exactAmountsByPersonId: effectiveAllocation.amountsByPersonId }
+              : formValuesToAllocationSnapshot(method, participantIds, allocation, group.currency);
+          const template = makeRecurringTemplate({
+            title: cleanTitle,
+            amountMinor,
+            category,
+            payerPersonId: payerId,
+            participantIds: effectiveParticipantIds,
+            splitMethod: effectiveMethod,
+            allocation: recurringAllocation,
+            note: note.trim() || undefined,
+            frequency: repeat,
+            date,
+            items: cleanItems,
+          });
+          await splitGroupRepository.setRecurringTemplates(groupId, [
+            ...(group.recurringTemplates ?? []),
+            template,
+          ]);
+        }
+      } catch (preferenceError) {
+        toast.show(
+          `Expense saved, but a trip preference could not be updated: ${preferenceError instanceof Error ? preferenceError.message : 'unknown error'}`,
+          { variant: 'error' },
+        );
+        closeToTrip();
+        return;
+      }
+
+      toast.show(repeat === 'never' ? 'Expense added' : 'Expense added and recurrence saved', { variant: 'success' });
+      closeToTrip();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save this expense.');
     } finally {
@@ -126,125 +260,133 @@ function ExpenseForm({ groupId, groupName, currency }: { groupId: string; groupN
   return (
     <form className="mx-auto max-w-xl space-y-5 pb-24" onSubmit={save}>
       <header className="flex items-center gap-2">
-        <button type="button" onClick={() => navigate({ to: '/split/group/$groupId', params: { groupId } })} className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Back to trip">
+        <button type="button" onClick={closeToTrip} className="icon-button" aria-label="Back to trip">
           <ArrowLeft size={18} />
         </button>
-        <div className="min-w-0"><h1 className="text-lg font-semibold">New expense</h1><p className="truncate text-xs text-slate-500">{groupName}</p></div>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold">New expense</h1>
+          <p className="truncate text-xs text-slate-500">{group.name}</p>
+        </div>
       </header>
 
       {tripPeople.length === 0 ? (
         <Card><p className="text-sm font-medium">Add people before adding an expense.</p></Card>
       ) : (
         <>
-          <section className="space-y-3">
-            <Input label="What was it?" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Dinner, Hotel, Taxi…" autoFocus required />
-            <MoneyInput label="Amount" currency={currency} value={amount} onChange={setAmount} />
-          </section>
+          <Card className="space-y-4">
+            <Input
+              label="What was it?"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Dinner, hotel, taxi…"
+              autoFocus
+              required
+              maxLength={200}
+            />
+            {foreignEnabled ? (
+              <div className="space-y-1">
+                <p className="label">Trip amount · {group.currency}</p>
+                <div className="input flex h-12 items-center px-3 text-base font-semibold tabular-nums">
+                  <Money value={{ amountMinor, currency: group.currency }} />
+                </div>
+                <p className="text-xs text-slate-500">Calculated from {originalCurrency} using your manual rate.</p>
+              </div>
+            ) : (
+              <MoneyInput label="Amount" currency={group.currency} value={amountMinor} onChange={setAmountMinor} />
+            )}
+          </Card>
 
-          <ChoiceSection label="Paid by">
-            {tripPeople.map((person) => <ChoiceChip key={person.id} label={person.isSelf ? 'You' : person.name} selected={payerId === person.id} onClick={() => setPayerId(person.id)} />)}
-          </ChoiceSection>
+          <div className="space-y-2">
+            <button type="button" onClick={() => setSplitSheetOpen(true)} className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {payer?.isSelf ? 'You' : payer?.name ?? 'Choose payer'} paid · {splitLabel} · {itemized ? `${items.length} item${items.length === 1 ? '' : 's'}` : `${participantIds.length} people`}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">Tap only if this expense is different from the trip default.</p>
+              </div>
+              <ChevronRight size={18} className="shrink-0 text-slate-400" />
+            </button>
 
-          <section className="space-y-2">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Split with</h2><button type="button" onClick={selectEveryone} className="text-xs font-medium text-brand-600 hover:underline">Everyone</button></div>
-            <div className="flex flex-wrap gap-2">
-              {tripPeople.map((person) => <ChoiceChip key={person.id} label={person.isSelf ? 'You' : person.name} selected={participantIds.includes(person.id)} onClick={() => toggleParticipant(person.id)} />)}
-            </div>
-            <p className="text-xs text-slate-500">{participantIds.length} of {tripPeople.length} people selected</p>
-          </section>
+            <button type="button" onClick={() => setDetailsSheetOpen(true)} className="surface-interactive flex min-h-16 w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{detailBits.join(' · ')}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  {foreignEnabled
+                    ? `${originalCurrency} ${minorToDecimal(originalAmountMinor, originalCurrency)} → ${group.currency}`
+                    : itemized
+                      ? `${items.length} item${items.length === 1 ? '' : 's'} itemized`
+                      : 'Category, date, repeat, currency, itemization and note'}
+                </p>
+              </div>
+              {repeat !== 'never' ? <Repeat2 size={17} className="shrink-0 text-brand-500" /> : <ChevronRight size={18} className="shrink-0 text-slate-400" />}
+            </button>
+          </div>
 
-          <ChoiceSection label="Category">
-            {SPLIT_CATEGORIES.map((item) => (
-              <ChoiceChip
-                key={item.value}
-                label={item.label}
-                icon={<SplitCategoryIcon category={item.value} size={15} />}
-                selected={category === item.value}
-                onClick={() => setCategory(item.value)}
-              />
-            ))}
-          </ChoiceSection>
-
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold">How should it be split?</h2>
-            <SplitMethodSelector value={method} onChange={(next) => { setMethod(next); setAllocation({}); }} />
-            <p className="text-xs text-slate-500">{methodHelp(method)}</p>
-          </section>
-
-          {method !== 'equal' && selectedPeople.length > 0 && (
-            <SplitAllocationEditor method={method} participants={selectedPeople} currency={currency} totalAmountMinor={amount} values={allocation} onChange={(personId, raw) => setAllocation((current) => ({ ...current, [personId]: raw }))} error={method === 'exact' && amount > 0 ? validateExact(participantIds, allocation, amount, currency) : undefined} />
+          {foreignEnabled && (
+            <Card className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-500">Original payment</p>
+                <p className="truncate text-sm font-semibold"><Money value={{ amountMinor: originalAmountMinor, currency: originalCurrency }} /></p>
+              </div>
+              <p className="text-right text-xs text-slate-500">1 {originalCurrency} = {exchangeRate || '—'} {group.currency}</p>
+            </Card>
           )}
-
-          <details className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">More details</summary>
-            <div className="space-y-3 border-t border-slate-100 p-4 dark:border-slate-800">
-              <DateInput label="Date" value={date} onChange={setDate} />
-              <Textarea label="Note / receipt reference" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note, bill number or receipt filename" />
-            </div>
-          </details>
 
           {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
           <Button type="submit" block size="lg" disabled={submitting}>{submitting ? 'Saving…' : 'Save expense'}</Button>
         </>
       )}
+
+      <SplitDetailsSheet
+        open={splitSheetOpen}
+        onClose={() => setSplitSheetOpen(false)}
+        people={tripPeople}
+        currency={group.currency}
+        amountMinor={amountMinor}
+        payerId={payerId}
+        onPayerChange={setPayerId}
+        participantIds={participantIds}
+        onParticipantsChange={setParticipantIds}
+        method={method}
+        onMethodChange={setMethod}
+        allocation={allocation}
+        onAllocationChange={setAllocation}
+        itemized={itemized}
+        rememberDefault={rememberDefault}
+        onRememberDefaultChange={setRememberDefault}
+      />
+
+      <ExpenseDetailsSheet
+        open={detailsSheetOpen}
+        onClose={() => setDetailsSheetOpen(false)}
+        currency={group.currency}
+        amountMinor={amountMinor}
+        category={category}
+        onCategoryChange={setCategory}
+        date={date}
+        onDateChange={setDate}
+        note={note}
+        onNoteChange={setNote}
+        repeat={repeat}
+        onRepeatChange={setRepeat}
+        foreignEnabled={foreignEnabled}
+        onForeignEnabledChange={setForeignEnabled}
+        originalCurrency={originalCurrency}
+        onOriginalCurrencyChange={setOriginalCurrency}
+        originalAmountMinor={originalAmountMinor}
+        onOriginalAmountChange={setOriginalAmountMinor}
+        exchangeRate={exchangeRate}
+        onExchangeRateChange={setExchangeRate}
+        people={tripPeople}
+        defaultParticipantIds={participantIds}
+        itemized={itemized}
+        onItemizedChange={(enabled) => {
+          setItemized(enabled);
+          if (enabled) setRememberDefault(false);
+        }}
+        items={items}
+        onItemsChange={setItems}
+      />
     </form>
   );
-}
-
-function ChoiceSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return <section className="space-y-2"><h2 className="text-sm font-semibold">{label}</h2><div className="flex flex-wrap gap-2">{children}</div></section>;
-}
-
-function ChoiceChip({ label, icon, selected, onClick }: { label: string; icon?: React.ReactNode; selected: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={selected} className={selected ? 'inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-sm font-medium text-white' : 'inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'}>
-      {selected && <Check size={14} />}{icon}{label}
-    </button>
-  );
-}
-
-function methodHelp(method: SplitMethod): string {
-  if (method === 'equal') return 'Everyone selected gets an equal share.';
-  if (method === 'exact') return 'Enter the exact amount each person should pay.';
-  if (method === 'percentage') return 'Enter each person’s percentage; the total must be 100%.';
-  return 'Give people weights such as 1 share or 2 shares.';
-}
-
-function validateExact(participantIds: string[], allocation: Record<string, string>, amountMinor: number, currency: string): string | undefined {
-  let total = 0;
-  for (const id of participantIds) {
-    const raw = allocation[id] ?? '';
-    if (!raw.trim()) return 'Enter an amount for everyone selected.';
-    try { total += decimalToMinor(raw, currency); } catch { return 'One of the amounts is invalid.'; }
-  }
-  return total === amountMinor ? undefined : 'Exact amounts must add up to the expense total.';
-}
-
-function buildAllocationInput(method: SplitMethod, participantIds: string[], allocation: Record<string, string>, currency: string) {
-  if (method === 'equal') return { method: 'equal' as const };
-  if (method === 'exact') {
-    const amountsByPersonId: Record<string, number> = {};
-    for (const id of participantIds) {
-      const raw = allocation[id] ?? '';
-      if (!raw.trim()) throw new Error('Enter an exact amount for everyone selected.');
-      amountsByPersonId[id] = decimalToMinor(raw, currency);
-    }
-    return { method: 'exact' as const, amountsByPersonId };
-  }
-  if (method === 'percentage') {
-    const percentagesByPersonId: Record<string, number> = {};
-    for (const id of participantIds) {
-      const value = Number(allocation[id] ?? '');
-      if (!Number.isFinite(value) || value < 0) throw new Error('Enter a valid percentage for everyone selected.');
-      percentagesByPersonId[id] = value;
-    }
-    return { method: 'percentage' as const, percentagesByPersonId };
-  }
-  const sharesByPersonId: Record<string, number> = {};
-  for (const id of participantIds) {
-    const value = Number(allocation[id] ?? '');
-    if (!Number.isInteger(value) || value <= 0) throw new Error('Shares must be positive whole numbers.');
-    sharesByPersonId[id] = value;
-  }
-  return { method: 'shares' as const, sharesByPersonId };
 }

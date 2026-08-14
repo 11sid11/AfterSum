@@ -15,13 +15,15 @@ import {
   type CreateInput,
 } from '@db/repositories/base';
 import { SplitGroupInputSchema, type SplitGroupInput, type SplitGroupUpdate } from '../domain/validation';
-import type { SplitGroup } from '@db/schema';
+import type { SplitDefaultSplit, SplitGroup, SplitRecurringTemplate } from '@db/schema';
 
+/** Normalize user-editable text without adding keys that were absent from a partial patch. */
 function clean(input: Partial<SplitGroupInput>): Partial<SplitGroupInput> {
-  return {
-    ...input,
-    description: input.description || undefined,
-  };
+  const next: Partial<SplitGroupInput> = { ...input };
+  if (Object.prototype.hasOwnProperty.call(input, 'description')) {
+    next.description = input.description || undefined;
+  }
+  return next;
 }
 
 export const splitGroupRepository = {
@@ -64,6 +66,14 @@ export const splitGroupRepository = {
       }
     }
     return repoUpdate<SplitGroup>(db.splitGroups, id, clean(parsed));
+  },
+
+  async setDefaultSplit(id: string, value: SplitDefaultSplit | undefined): Promise<SplitGroup> {
+    return this.update(id, { defaultSplit: value });
+  },
+
+  async setRecurringTemplates(id: string, templates: SplitRecurringTemplate[]): Promise<SplitGroup> {
+    return this.update(id, { recurringTemplates: templates });
   },
 
   async archive(id: string): Promise<SplitGroup> {

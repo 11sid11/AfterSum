@@ -6,17 +6,79 @@ export const APP_NAME = 'Finance Utility';
 export const APP_VERSION = '0.1.0';
 export const SCHEMA_VERSION = 1;
 
-export const CURRENCY_OPTIONS: Array<{ code: string; label: string; symbol: string }> = [
-  { code: 'INR', label: 'Indian Rupee', symbol: '₹' },
-  { code: 'USD', label: 'US Dollar', symbol: '$' },
-  { code: 'EUR', label: 'Euro', symbol: '€' },
-  { code: 'GBP', label: 'British Pound', symbol: '£' },
-  { code: 'JPY', label: 'Japanese Yen', symbol: '¥' },
-  { code: 'AUD', label: 'Australian Dollar', symbol: 'A$' },
-  { code: 'CAD', label: 'Canadian Dollar', symbol: 'C$' },
-  { code: 'SGD', label: 'Singapore Dollar', symbol: 'S$' },
-  { code: 'AED', label: 'UAE Dirham', symbol: 'د.إ' },
-];
+/**
+ * ISO 4217 currency catalogue used by local pickers.
+ *
+ * Labels and symbols are derived with Intl so the app can support a broad
+ * currency set without shipping a hand-maintained exchange-rate service.
+ * AfterSum never fetches rates automatically; foreign-expense conversion is
+ * explicit and manual.
+ */
+const CURRENCY_CODES = [
+  'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN',
+  'BAM', 'BBD', 'BDT', 'BGN', 'BHD', 'BIF', 'BMD', 'BND', 'BOB', 'BRL',
+  'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CAD', 'CDF', 'CHF', 'CLP', 'CNY',
+  'COP', 'CRC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP', 'DZD', 'EGP',
+  'ERN', 'ETB', 'EUR', 'FJD', 'FKP', 'GBP', 'GEL', 'GHS', 'GIP', 'GMD',
+  'GNF', 'GTQ', 'GYD', 'HKD', 'HNL', 'HTG', 'HUF', 'IDR', 'ILS', 'INR',
+  'IQD', 'IRR', 'ISK', 'JMD', 'JOD', 'JPY', 'KES', 'KGS', 'KHR', 'KMF',
+  'KPW', 'KRW', 'KWD', 'KYD', 'KZT', 'LAK', 'LBP', 'LKR', 'LRD', 'LSL',
+  'LYD', 'MAD', 'MDL', 'MGA', 'MKD', 'MMK', 'MNT', 'MOP', 'MRU', 'MUR',
+  'MVR', 'MWK', 'MXN', 'MYR', 'MZN', 'NAD', 'NGN', 'NIO', 'NOK', 'NPR',
+  'NZD', 'OMR', 'PAB', 'PEN', 'PGK', 'PHP', 'PKR', 'PLN', 'PYG', 'QAR',
+  'RON', 'RSD', 'RUB', 'RWF', 'SAR', 'SBD', 'SCR', 'SDG', 'SEK', 'SGD',
+  'SHP', 'SLE', 'SOS', 'SRD', 'SSP', 'STN', 'SYP', 'SZL', 'THB', 'TJS',
+  'TMT', 'TND', 'TOP', 'TRY', 'TTD', 'TWD', 'TZS', 'UAH', 'UGX', 'USD',
+  'UYU', 'UZS', 'VES', 'VND', 'VUV', 'WST', 'XAF', 'XCD', 'XOF', 'XPF',
+  'YER', 'ZAR', 'ZMW', 'ZWL',
+] as const;
+
+/** Put high-frequency choices first; the rest stay alphabetic. */
+const COMMON_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'JPY', 'AUD', 'CAD'] as const;
+const commonCurrencyRank = new Map<string, number>(
+  COMMON_CURRENCIES.map((code, index) => [code, index]),
+);
+
+function currencyLabel(code: string): string {
+  try {
+    if (typeof Intl.DisplayNames === 'function') {
+      return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) ?? code;
+    }
+  } catch {
+    // Fall through to the code below.
+  }
+  return code;
+}
+
+function currencySymbol(code: string): string {
+  try {
+    const parts = new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: code,
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 0,
+    }).formatToParts(0);
+    return parts.find((part) => part.type === 'currency')?.value ?? code;
+  } catch {
+    return code;
+  }
+}
+
+export const CURRENCY_OPTIONS: Array<{ code: string; label: string; symbol: string }> =
+  CURRENCY_CODES.map((code) => ({
+    code,
+    label: currencyLabel(code),
+    symbol: currencySymbol(code),
+  })).sort((a, b) => {
+    const aRank = commonCurrencyRank.get(a.code);
+    const bRank = commonCurrencyRank.get(b.code);
+    if (aRank !== undefined || bRank !== undefined) {
+      if (aRank === undefined) return 1;
+      if (bRank === undefined) return -1;
+      return aRank - bRank;
+    }
+    return a.code.localeCompare(b.code);
+  });
 
 /** Number of milliseconds for a typical "undo" window. */
 export const UNDO_TIMEOUT_MS = 5000;
