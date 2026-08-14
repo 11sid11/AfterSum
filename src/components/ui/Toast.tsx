@@ -55,9 +55,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => {
           const Icon = toast.variant === 'success' ? CircleCheck : toast.variant === 'error' ? CircleAlert : Info;
           const iconClass = toast.variant === 'success'
-            ? 'bg-emerald-400/15 text-emerald-300'
+            ? 'bg-emerald-400/[0.15] text-emerald-300'
             : toast.variant === 'error'
-              ? 'bg-rose-400/15 text-rose-300'
+              ? 'bg-rose-400/[0.15] text-rose-300'
               : 'bg-white/[0.08] text-white/70';
           return (
             <div
