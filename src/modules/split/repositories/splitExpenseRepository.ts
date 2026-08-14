@@ -59,6 +59,12 @@ export const splitExpenseRepository = {
       splitMethod: parsed.splitMethod,
       category: parsed.category,
       note: parsed.note || undefined,
+      originalCurrency: parsed.originalCurrency,
+      originalAmountMinor: parsed.originalAmountMinor,
+      exchangeRate: parsed.exchangeRate,
+      items: parsed.items,
+      recurrenceTemplateId: parsed.recurrenceTemplateId,
+      recurrenceOccurrenceDate: parsed.recurrenceOccurrenceDate,
     };
     const payerRows: SplitPayer[] = parsed.payers.map((payer) => ({
       id: prefixedId('pay'), createdAt: now, updatedAt: now, revision: 1,
