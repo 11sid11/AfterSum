@@ -15,7 +15,7 @@ export function LendPersonCard({ summary }: { summary: PersonSummary }) {
     <Link
       to="/lend/person/$personId"
       params={{ personId: person.id }}
-      className="group flex min-w-0 items-center gap-3 rounded-[16px] border border-slate-200/85 bg-white p-3.5 shadow-[0_1px_2px_rgb(15_23_42/0.025),0_4px_12px_rgb(15_23_42/0.025)] transition-[transform,border-color,background-color] duration-200 hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50/60 active:scale-[0.99] dark:border-white/[0.075] dark:bg-[#141821] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.05]"
+      className="group flex min-w-0 items-center gap-3 rounded-[16px] border border-slate-200/[0.85] bg-white p-3.5 shadow-[0_1px_2px_rgb(15_23_42/0.025),0_4px_12px_rgb(15_23_42/0.025)] transition-[transform,border-color,background-color] duration-200 hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50/60 active:scale-[0.99] dark:border-white/[0.075] dark:bg-[#141821] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.05]"
     >
       <div className={balanceMinor < 0
         ? 'grid h-10 w-10 shrink-0 place-items-center rounded-full bg-rose-100 text-xs font-semibold text-rose-700 dark:bg-rose-400/[0.11] dark:text-rose-300'
