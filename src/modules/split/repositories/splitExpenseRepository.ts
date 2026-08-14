@@ -65,6 +65,7 @@ export const splitExpenseRepository = {
       items: parsed.items,
       recurrenceTemplateId: parsed.recurrenceTemplateId,
       recurrenceOccurrenceDate: parsed.recurrenceOccurrenceDate,
+      importSourceKey: parsed.importSourceKey,
     };
     const payerRows: SplitPayer[] = parsed.payers.map((payer) => ({
       id: prefixedId('pay'), createdAt: now, updatedAt: now, revision: 1,
