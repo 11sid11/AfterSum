@@ -92,7 +92,7 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
               <p className="mt-3 text-[2.45rem] font-semibold leading-none tracking-[-0.055em] tabular-nums sm:text-[3.2rem]">
                 <Money value={{ amountMinor: summary.spentMinor, currency: summary.currency }} hide={hide} emphasize />
               </p>
-              <div className="mt-4 flex items-center gap-2 text-xs text-white/48">
+              <div className="mt-4 flex items-center gap-2 text-xs text-white/[0.48]">
                 <ArrowUpRight size={14} className="text-emerald-300/80" />
                 <span>Income</span>
                 <strong className="font-semibold text-white/80"><Money value={{ amountMinor: summary.incomeMinor, currency: summary.currency }} hide={hide} /></strong>
@@ -103,8 +103,8 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
               <div className="rounded-[20px] border border-white/10 bg-white/[0.065] p-4 backdrop-blur">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-white/42">Budget</p>
-                    <p className="mt-1 text-sm font-semibold text-white/88">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-white/[0.42]">Budget</p>
+                    <p className="mt-1 text-sm font-semibold text-white/[0.88]">
                       {summary.budget.remainingMinor >= 0
                         ? <><Money value={{ amountMinor: summary.budget.remainingMinor, currency: summary.currency }} hide={hide} /> left</>
                         : <>Over by <Money value={{ amountMinor: Math.abs(summary.budget.remainingMinor), currency: summary.currency }} hide={hide} /></>}
@@ -118,15 +118,15 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
                     style={{ width: `${Math.min(100, summary.budget.percent)}%` }}
                   />
                 </div>
-                <p className="mt-2 text-[10px] text-white/35"><Money value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }} hide={hide} /> monthly limit</p>
+                <p className="mt-2 text-[10px] text-white/[0.35]"><Money value={{ amountMinor: summary.budget.amountMinor, currency: summary.currency }} hide={hide} /> monthly limit</p>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => navigate({ to: '/track/budget', search: { month } })}
-                className="min-h-[104px] rounded-[20px] border border-dashed border-white/15 bg-white/[0.04] px-4 text-left transition-colors hover:bg-white/[0.07]"
+                className="min-h-[104px] rounded-[20px] border border-dashed border-white/[0.15] bg-white/[0.04] px-4 text-left transition-colors hover:bg-white/[0.07]"
               >
-                <p className="text-sm font-semibold text-white/82">Set a monthly budget</p>
+                <p className="text-sm font-semibold text-white/[0.82]">Set a monthly budget</p>
                 <p className="mt-1 text-xs leading-5 text-white/40">Optional. Useful only if you want a spending guardrail.</p>
               </button>
             )}
