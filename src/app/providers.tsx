@@ -10,6 +10,7 @@ import { ensureFirstLaunch } from '@db/seed';
 import { CelebrationProvider, ToastProvider } from '@components/ui';
 import { ensureDailyRecoverySnapshot } from '@/backup/recovery';
 import { ThemeSync } from '@shared/settings/ThemeSync';
+import { PwaUpdatePrompt } from './pwa/PwaUpdatePrompt';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -77,6 +78,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ToastProvider>
         <ThemeSync />
         {children}
+        <PwaUpdatePrompt />
       </ToastProvider>
     </CelebrationProvider>
   );
