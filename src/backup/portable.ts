@@ -1,6 +1,10 @@
 import type { Backup } from '@/export/json/backup';
+import {
+  shareOrDownloadFile,
+  type FileHandoffResult,
+} from '@shared/files/shareFile';
 
-export type PortableBackupResult = 'shared' | 'downloaded' | 'cancelled';
+export type PortableBackupResult = FileHandoffResult;
 
 export function createPortableBackupFile(backup: Backup, now: Date = new Date()): File {
   const stamp = formatFileTimestamp(now);
@@ -15,37 +19,11 @@ export function createPortableBackupFile(backup: Backup, now: Date = new Date())
  * back to a normal file download. AfterSum never learns which destination the
  * user chooses.
  */
-export async function shareOrDownloadBackup(file: File): Promise<PortableBackupResult> {
-  const shareData: ShareData = {
+export function shareOrDownloadBackup(file: File): Promise<PortableBackupResult> {
+  return shareOrDownloadFile(file, {
     title: 'AfterSum backup',
     text: 'Portable AfterSum backup',
-    files: [file],
-  };
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    try {
-      await navigator.share(shareData);
-      return 'shared';
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
-      // A platform can expose Web Share but reject files at runtime. Falling
-      // back to download keeps backup available without broad permissions.
-    }
-  }
-
-  downloadFile(file);
-  return 'downloaded';
-}
-
-function downloadFile(file: File): void {
-  const url = URL.createObjectURL(file);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = file.name;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  });
 }
 
 function formatFileTimestamp(date: Date): string {

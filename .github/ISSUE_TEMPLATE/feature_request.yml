@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a focused improvement to AfterSum
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AfterSum is intentionally offline-first and low-complexity. Strong proposals explain the user problem first and preserve the separation between Track, Split, Lend, and Overview.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the user friction or missing capability rather than only the implementation idea.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: What should the user be able to do, and where should it live in the app?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Overview
+        - Track
+        - Split
+        - Lend
+        - People
+        - Backup / export / restore
+        - PWA / offline / updates
+        - Cross-cutting UI / accessibility
+        - Developer experience
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: architecture
+    attributes:
+      label: Architecture fit
+      options:
+        - label: This can work without making a backend or account mandatory.
+        - label: This does not silently merge Track, Split, and Lend balances.
+        - label: This does not require bank credentials or payment processing.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Include simpler approaches if you considered them.

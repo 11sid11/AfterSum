@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/11sid11/AfterSum/security
+    about: Please avoid posting sensitive security details or real financial data in a public issue.

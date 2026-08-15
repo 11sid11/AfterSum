@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a reproducible problem in AfterSum
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please use synthetic data only—do not upload real backups, financial exports, phone numbers, email addresses, or screenshots with sensitive information.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the behavior you observed and what you expected instead.
+      placeholder: A clear, concise description of the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic/example records where possible.
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Enter ...
+        4. See ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Area
+      options:
+        - Overview
+        - Track
+        - Split
+        - Lend
+        - People
+        - Backup / export / restore
+        - PWA / offline / updates
+        - Settings / appearance
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 140, Safari 19, Firefox 142, etc.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Android 16, iOS 19, Windows 11, macOS 16, Linux, etc.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installed
+    attributes:
+      label: How are you using AfterSum?
+      options:
+        - Installed PWA
+        - Browser tab
+        - Local development build
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Include console errors only if they do not contain sensitive data.
