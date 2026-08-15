@@ -14,10 +14,7 @@ function setNavigatorMethod<K extends 'share' | 'canShare'>(key: K, value: Navig
 }
 
 describe('shareOrDownloadFile', () => {
-  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-
   beforeEach(() => {
-    click.mockClear();
     URL.createObjectURL = vi.fn(() => 'blob:aftersum-test');
     URL.revokeObjectURL = vi.fn();
   });
@@ -31,6 +28,7 @@ describe('shareOrDownloadFile', () => {
   });
 
   it('uses the native share sheet when file sharing is supported', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const share = vi.fn().mockResolvedValue(undefined);
     const canShare = vi.fn().mockReturnValue(true);
     setNavigatorMethod('share', share as Navigator['share']);
@@ -46,6 +44,7 @@ describe('shareOrDownloadFile', () => {
   });
 
   it('does not download when the user cancels the share sheet', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     const share = vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError'));
     setNavigatorMethod('share', share as Navigator['share']);
     setNavigatorMethod('canShare', vi.fn().mockReturnValue(true) as Navigator['canShare']);
@@ -57,6 +56,7 @@ describe('shareOrDownloadFile', () => {
   });
 
   it('falls back to a file download when native file sharing is unavailable', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     setNavigatorMethod('share', vi.fn() as Navigator['share']);
     setNavigatorMethod('canShare', vi.fn().mockReturnValue(false) as Navigator['canShare']);
 
