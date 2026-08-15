@@ -15,12 +15,7 @@ export async function shareOrDownloadFile(
   file: File,
   options: FileHandoffOptions = {},
 ): Promise<FileHandoffResult> {
-  const canUseShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    (typeof navigator.canShare !== 'function' || navigator.canShare({ files: [file] }));
-
-  if (canUseShare) {
+  if (canShareFile(file)) {
     try {
       await navigator.share({
         ...options,
@@ -42,6 +37,17 @@ export function fileFromBlob(blob: Blob, filename: string, fallbackType?: string
   return new File([blob], filename, {
     type: blob.type || fallbackType || 'application/octet-stream',
   });
+}
+
+function canShareFile(file: File): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  if (typeof navigator.canShare !== 'function') return true;
+
+  try {
+    return navigator.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
 }
 
 function downloadFile(file: File): void {
