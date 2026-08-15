@@ -122,7 +122,11 @@ function TrackAddForm({ currency }: { currency: string }) {
                   <button
                     key={type}
                     type="button"
-                    onClick={() => field.handleChange(type)}
+                    onClick={() => {
+                      if (selected) return;
+                      field.handleChange(type);
+                      form.setFieldValue('categoryId', '');
+                    }}
                     aria-pressed={selected}
                     className={selected
                       ? type === 'expense'
@@ -179,16 +183,16 @@ function TrackAddForm({ currency }: { currency: string }) {
                 )}
               </form.Field>
 
-              <form.Field name="type">
-                {(field) => (
+              <form.Subscribe selector={(state) => [state.values.type, state.values.categoryId] as const}>
+                {([type, categoryId]) => (
                   <CategoryPicker
-                    type={field.state.value}
-                    value={form.getFieldValue('categoryId') || undefined}
+                    type={type}
+                    value={categoryId || undefined}
                     onChange={(id) => form.setFieldValue('categoryId', id ?? '')}
                     allowEmpty
                   />
                 )}
-              </form.Field>
+              </form.Subscribe>
             </div>
 
             <form.Field name="paymentMethod">
