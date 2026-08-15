@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   Database,
-  Download,
   FileSpreadsheet,
   History,
   RefreshCw,
@@ -27,6 +26,7 @@ import { csvOfTrackTransactions } from '@/export/csv/serializer';
 import { getDB } from '@db/database';
 import type { RecoverySnapshot } from '@db/schema';
 import { formatHumanDateTime, nowISO, toMonthKey } from '@shared/dates';
+import { fileFromBlob, shareOrDownloadFile } from '@shared/files/shareFile';
 import {
   getBrowserStorageInfo,
   persistBrowserStorage,
@@ -34,17 +34,6 @@ import {
 } from '@shared/storage';
 import { settingsRepository } from '@shared/settings/repository';
 import { useAppSettings } from '@shared/settings/useSettings';
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
 
 export function BackupCenter() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -101,7 +90,7 @@ export function BackupCenter() {
       if (result === 'cancelled') return;
 
       await settingsRepository.setLastPortableBackupAt(nowISO());
-      toast.show(result === 'shared' ? 'Backup ready in the system share sheet.' : 'Portable backup downloaded.');
+      toast.show(result === 'shared' ? 'Backup shared successfully.' : 'Portable backup downloaded.');
     } catch (error) {
       toast.show('Backup failed: ' + errorMessage(error), { variant: 'error' });
     } finally {
@@ -158,8 +147,14 @@ export function BackupCenter() {
     try {
       const blob = await buildFullZip();
       const stamp = new Date().toISOString().slice(0, 10);
-      downloadBlob(blob, `aftersum-export-${stamp}.zip`);
-      toast.show('CSV package downloaded');
+      const file = fileFromBlob(blob, `aftersum-export-${stamp}.zip`, 'application/zip');
+      const result = await shareOrDownloadFile(file, {
+        title: 'AfterSum CSV export',
+        text: 'AfterSum CSV data package',
+      });
+      if (result === 'cancelled') return;
+
+      toast.show(result === 'shared' ? 'CSV package shared successfully.' : 'CSV package downloaded.');
     } catch (error) {
       toast.show('Export failed: ' + errorMessage(error), { variant: 'error' });
     } finally {
@@ -184,8 +179,20 @@ export function BackupCenter() {
         categories,
         settings?.defaultCurrency ?? 'INR',
       );
-      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `track-${month}.csv`);
-      toast.show(`Exported ${filtered.length} transactions for ${month}`);
+      const file = new File([csv], `track-${month}.csv`, {
+        type: 'text/csv;charset=utf-8',
+      });
+      const result = await shareOrDownloadFile(file, {
+        title: `AfterSum Track export — ${month}`,
+        text: `${filtered.length} Track transactions from ${month}`,
+      });
+      if (result === 'cancelled') return;
+
+      toast.show(
+        result === 'shared'
+          ? `Shared ${filtered.length} transactions for ${month}.`
+          : `Exported ${filtered.length} transactions for ${month}.`,
+      );
     } catch (error) {
       toast.show('Export failed: ' + errorMessage(error), { variant: 'error' });
     } finally {
@@ -300,7 +307,7 @@ export function BackupCenter() {
           <div>
             <h2 className="text-sm font-semibold">Portable backup</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Save one complete AfterSum file somewhere outside this device. On supported phones, the system share sheet lets you choose where it goes without connecting an account to AfterSum.
+              Save one complete AfterSum file somewhere outside this device. On supported devices, the system share sheet lets you choose Drive, Files, WhatsApp, Dropbox, or another installed destination without connecting an account to AfterSum.
             </p>
           </div>
         </div>
@@ -379,11 +386,11 @@ export function BackupCenter() {
       <Card>
         <h2 className="section-title mb-2">Exports</h2>
         <p className="mb-3 text-xs text-slate-500">
-          CSV is for spreadsheets and analysis. Use a portable backup when you want to restore AfterSum later.
+          CSV is for spreadsheets and analysis. On supported devices, exports open the system share sheet so you can choose where the file goes; browsers without file sharing fall back to a download. Use a portable backup when you want to restore AfterSum later.
         </p>
         <div className="space-y-2">
           <Button block variant="secondary" onClick={() => void exportZip()} disabled={!!busy}>
-            {busy === 'zip' ? <Spinner /> : <Download size={16} />} Export CSV package (ZIP)
+            {busy === 'zip' ? <Spinner /> : <Share2 size={16} />} Export CSV package (ZIP)
           </Button>
           <Button block variant="secondary" onClick={() => void exportMonth()} disabled={!!busy}>
             {busy === 'month' ? <Spinner /> : <FileSpreadsheet size={16} />} Export current Track month
