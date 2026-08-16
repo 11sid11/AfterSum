@@ -58,13 +58,14 @@ export function LendPage() {
             <h2 className="text-sm font-semibold tracking-[-0.02em]">People</h2>
             <p className="mt-1 text-xs text-slate-500">Tap a person to see their running ledger.</p>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate({ to: '/settings/people' })}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/[0.06] dark:hover:text-white"
+            className="shrink-0"
           >
             <Users size={14} /> Manage
-          </button>
+          </Button>
         </div>
 
         {!hasLendPeople ? (
