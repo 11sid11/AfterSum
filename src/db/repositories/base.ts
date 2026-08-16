@@ -1,9 +1,9 @@
 /**
  * Base repository helpers.
  *
- * Repositories are the only place that touch Dexie. Components
- * and services call `xxxRepository.create()` etc. They never
- * reach into `db.table.add(...)` directly.
+ * Repositories own persistence writes. Query/projection modules may read
+ * Dexie directly when they need reactive or aggregate data, but UI components
+ * should not operate on database tables themselves.
  *
  * Every write:
  *   - sets `createdAt` / `updatedAt`

@@ -8,7 +8,7 @@ export { MoneyInput } from './MoneyInput';
 export { DateInput } from './DateInput';
 export { CategoryPicker, PaymentMethodPicker, CurrencyPicker } from './Picker';
 export { Toggle } from './Toggle';
-export { Spinner } from './Tabs';
+export { Spinner } from './Spinner';
 export { ToastProvider, useToast } from './Toast';
 export { CelebrationProvider, useCelebration } from './Celebration';
 export { Modal } from './Modal';
