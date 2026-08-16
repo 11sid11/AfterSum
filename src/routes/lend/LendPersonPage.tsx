@@ -1,6 +1,6 @@
 /** Lend person detail page. */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { Card, EmptyState, Money, Spinner } from '@components/ui';
@@ -34,7 +34,7 @@ export function LendPersonPage() {
   const hide = !!settings.hideAmounts;
   const { totalBalance, entries } = detail;
   const currency = (detail.currency ?? settings.defaultCurrency) as CurrencyCode;
-  const runningBalances = useMemo(() => runningBalanceByEntryId(entries), [entries]);
+  const runningBalances = runningBalanceByEntryId(entries);
   const balanceLabel =
     totalBalance > 0
       ? `${person.name} owes you`
