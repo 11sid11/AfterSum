@@ -19,8 +19,11 @@ import type { TrackBudget } from '@db/schema';
 export const trackBudgetRepository = {
   /** The active budget for a given month, or undefined. */
   async getByMonth(month: string): Promise<TrackBudget | undefined> {
-    const all = await getDB().trackBudgets.toArray();
-    return all.find((b) => !b.deletedAt && b.month === month);
+    return getDB()
+      .trackBudgets.where('month')
+      .equals(month)
+      .filter((budget) => !budget.deletedAt)
+      .first();
   },
 
   /** All active budgets (across months), sorted by month desc. */

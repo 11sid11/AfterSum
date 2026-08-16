@@ -1,15 +1,16 @@
 /**
- * JSON backup format (work.md section 54).
+ * JSON backup format.
  *
- * { format, schemaVersion, exportedAt, shared, track, split, lend }
- *
- * This is the EXACT restore format. Restore replaces all
- * data inside an atomic DB transaction.
+ * Restoreable backups contain financial identity/settings plus every
+ * Track, Split, and Lend record. Restore replaces financial data inside
+ * one atomic database transaction while preserving device-only UI settings.
  */
 
+import { z } from 'zod';
 import { getDB } from '@db/database';
-import { APP_VERSION, SCHEMA_VERSION } from '@app/constants';
+import { APP_VERSION } from '@app/constants';
 import { nowISO } from '@shared/dates';
+import { settingsRepository } from '@shared/settings/repository';
 import type {
   Person,
   TrackTransaction,
@@ -27,14 +28,152 @@ import type {
 } from '@db/schema';
 
 export const BACKUP_FORMAT = 'finance-utility-backup';
+export const BACKUP_SCHEMA_VERSION = 2;
+
+const idSchema = z.string().min(1);
+const currencySchema = z.string().trim().min(1);
+const minorAmountSchema = z.number().int().nonnegative();
+const baseEntitySchema = z.object({
+  id: idSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  deletedAt: z.string().optional(),
+  revision: z.number().int().nonnegative(),
+});
+
+const personSchema = baseEntitySchema.extend({
+  name: z.string(),
+  isSelf: z.boolean().optional(),
+}).passthrough();
+
+const trackTransactionSchema = baseEntitySchema.extend({
+  type: z.enum(['expense', 'income']),
+  title: z.string(),
+  amountMinor: minorAmountSchema,
+  currency: currencySchema,
+  date: z.string(),
+}).passthrough();
+
+const trackCategorySchema = baseEntitySchema.extend({
+  name: z.string(),
+  type: z.enum(['expense', 'income']),
+  archived: z.boolean(),
+}).passthrough();
+
+const trackBudgetSchema = baseEntitySchema.extend({
+  month: z.string(),
+  amountMinor: minorAmountSchema,
+  currency: currencySchema,
+}).passthrough();
+
+const trackRecurringRuleSchema = baseEntitySchema.extend({
+  title: z.string(),
+  amountMinor: minorAmountSchema.optional(),
+  currency: currencySchema,
+  frequency: z.enum(['weekly', 'monthly', 'yearly']),
+  nextDate: z.string(),
+  enabled: z.boolean(),
+}).passthrough();
+
+const splitGroupSchema = baseEntitySchema.extend({
+  name: z.string(),
+  currency: currencySchema,
+  archived: z.boolean(),
+}).passthrough();
+
+const splitGroupMemberSchema = baseEntitySchema.extend({
+  groupId: idSchema,
+  personId: idSchema,
+  active: z.boolean(),
+  joinedAt: z.string(),
+}).passthrough();
+
+const splitExpenseSchema = baseEntitySchema.extend({
+  groupId: idSchema,
+  title: z.string(),
+  amountMinor: minorAmountSchema,
+  currency: currencySchema,
+  date: z.string(),
+  splitMethod: z.enum(['equal', 'exact', 'percentage', 'shares']),
+}).passthrough();
+
+const splitPayerSchema = baseEntitySchema.extend({
+  expenseId: idSchema,
+  personId: idSchema,
+  amountMinor: minorAmountSchema,
+}).passthrough();
+
+const splitShareSchema = baseEntitySchema.extend({
+  expenseId: idSchema,
+  personId: idSchema,
+  amountMinor: minorAmountSchema,
+}).passthrough();
+
+const splitSettlementSchema = baseEntitySchema.extend({
+  groupId: idSchema,
+  fromPersonId: idSchema,
+  toPersonId: idSchema,
+  amountMinor: minorAmountSchema,
+  currency: currencySchema,
+  date: z.string(),
+}).passthrough();
+
+const lendLedgerSchema = baseEntitySchema.extend({
+  personId: idSchema,
+  currency: currencySchema,
+  archived: z.boolean(),
+}).passthrough();
+
+const lendEntrySchema = baseEntitySchema.extend({
+  ledgerId: idSchema,
+  type: z.enum(['lent', 'borrowed', 'repayment_received', 'repayment_given', 'adjustment']),
+  amountMinor: z.number().int(),
+  date: z.string(),
+}).passthrough();
+
+const backupSchema = z.object({
+  format: z.literal(BACKUP_FORMAT),
+  schemaVersion: z.literal(BACKUP_SCHEMA_VERSION),
+  exportedAt: z.string().min(1),
+  appVersion: z.string().min(1),
+  shared: z.object({
+    people: z.array(personSchema),
+    settings: z.object({
+      defaultCurrency: currencySchema,
+    }).strict(),
+  }).strict(),
+  track: z.object({
+    transactions: z.array(trackTransactionSchema),
+    categories: z.array(trackCategorySchema),
+    budgets: z.array(trackBudgetSchema),
+    recurringRules: z.array(trackRecurringRuleSchema),
+  }).strict(),
+  split: z.object({
+    groups: z.array(splitGroupSchema),
+    members: z.array(splitGroupMemberSchema),
+    expenses: z.array(splitExpenseSchema),
+    payers: z.array(splitPayerSchema),
+    shares: z.array(splitShareSchema),
+    settlements: z.array(splitSettlementSchema),
+  }).strict(),
+  lend: z.object({
+    ledgers: z.array(lendLedgerSchema),
+    entries: z.array(lendEntrySchema),
+  }).strict(),
+}).strict();
+
+export interface BackupSettings {
+  defaultCurrency: string;
+}
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
-  schemaVersion: number;
+  schemaVersion: typeof BACKUP_SCHEMA_VERSION;
   exportedAt: string;
   appVersion: string;
   shared: {
     people: Person[];
+    settings: BackupSettings;
   };
   track: {
     transactions: TrackTransaction[];
@@ -56,10 +195,11 @@ export interface Backup {
   };
 }
 
-/** Build a deep snapshot of the local database. */
+/** Build a deep snapshot of the local financial database. */
 export async function exportBackup(): Promise<Backup> {
   const db = getDB();
-  const [people, track, split, lend] = await Promise.all([
+  const [settings, people, track, split, lend] = await Promise.all([
+    settingsRepository.get(),
     db.people.toArray(),
     db.trackTransactions.toArray().then(async (transactions) => ({
       transactions,
@@ -80,65 +220,48 @@ export async function exportBackup(): Promise<Backup> {
       entries: await db.lendEntries.toArray(),
     })),
   ]);
+
   return {
     format: BACKUP_FORMAT,
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: nowISO(),
     appVersion: APP_VERSION,
-    shared: { people },
+    shared: {
+      people,
+      settings: { defaultCurrency: settings.defaultCurrency },
+    },
     track,
     split,
     lend,
   };
 }
 
-/** Validate a parsed backup object. Throws on shape errors. */
+/** Validate a parsed backup object. Throws with the first invalid path. */
 export function validateBackup(input: unknown): Backup {
-  if (!input || typeof input !== 'object') throw new Error('Backup is not an object');
-  const b = input as Partial<Backup>;
-  if (b.format !== BACKUP_FORMAT) {
-    throw new Error(`Invalid backup format: ${b.format}`);
+  const result = backupSchema.safeParse(input);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const path = issue?.path.join('.');
+    throw new Error(`Invalid backup${path ? ` at ${path}` : ''}: ${issue?.message ?? 'unknown validation error'}`);
   }
-  if (typeof b.schemaVersion !== 'number' || b.schemaVersion !== SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported schema version: ${b.schemaVersion}. Expected ${SCHEMA_VERSION}.`,
-    );
-  }
-  for (const path of [
-    ['shared', 'people'],
-    ['track', 'transactions'],
-    ['track', 'categories'],
-    ['track', 'budgets'],
-    ['track', 'recurringRules'],
-    ['split', 'groups'],
-    ['split', 'members'],
-    ['split', 'expenses'],
-    ['split', 'payers'],
-    ['split', 'shares'],
-    ['split', 'settlements'],
-    ['lend', 'ledgers'],
-    ['lend', 'entries'],
-  ]) {
-    let cur: unknown = b;
-    for (const k of path) {
-      if (!cur || typeof cur !== 'object' || !(k in (cur as object))) {
-        throw new Error(`Backup missing ${path.join('.')}`);
-      }
-      cur = (cur as Record<string, unknown>)[k];
-    }
-    if (!Array.isArray(cur)) {
-      throw new Error(`Backup ${path.join('.')} is not an array`);
-    }
-  }
-  return b as Backup;
+  return result.data as Backup;
 }
 
 /** Restore a backup into the local database atomically. */
 export async function restoreBackup(backup: Backup): Promise<void> {
   const db = getDB();
+  const currentSettings = await settingsRepository.get();
+  const restoredSettings = {
+    ...currentSettings,
+    defaultCurrency: backup.shared.settings.defaultCurrency,
+    updatedAt: nowISO(),
+    revision: currentSettings.revision + 1,
+  };
+
   await db.transaction(
     'rw',
     [
+      db.settings,
       db.people,
       db.trackTransactions,
       db.trackCategories,
@@ -155,6 +278,7 @@ export async function restoreBackup(backup: Backup): Promise<void> {
     ],
     async () => {
       await Promise.all([
+        db.settings.clear(),
         db.people.clear(),
         db.trackTransactions.clear(),
         db.trackCategories.clear(),
@@ -169,20 +293,21 @@ export async function restoreBackup(backup: Backup): Promise<void> {
         db.lendLedgers.clear(),
         db.lendEntries.clear(),
       ]);
-      if (backup.shared.people.length)
-        await db.people.bulkPut(backup.shared.people);
-      await db.trackTransactions.bulkPut(backup.track.transactions);
-      await db.trackCategories.bulkPut(backup.track.categories);
-      await db.trackBudgets.bulkPut(backup.track.budgets);
-      await db.trackRecurringRules.bulkPut(backup.track.recurringRules);
-      await db.splitGroups.bulkPut(backup.split.groups);
-      await db.splitGroupMembers.bulkPut(backup.split.members);
-      await db.splitExpenses.bulkPut(backup.split.expenses);
-      await db.splitPayers.bulkPut(backup.split.payers);
-      await db.splitShares.bulkPut(backup.split.shares);
-      await db.splitSettlements.bulkPut(backup.split.settlements);
-      await db.lendLedgers.bulkPut(backup.lend.ledgers);
-      await db.lendEntries.bulkPut(backup.lend.entries);
+
+      await db.settings.put(restoredSettings);
+      if (backup.shared.people.length > 0) await db.people.bulkPut(backup.shared.people);
+      if (backup.track.transactions.length > 0) await db.trackTransactions.bulkPut(backup.track.transactions);
+      if (backup.track.categories.length > 0) await db.trackCategories.bulkPut(backup.track.categories);
+      if (backup.track.budgets.length > 0) await db.trackBudgets.bulkPut(backup.track.budgets);
+      if (backup.track.recurringRules.length > 0) await db.trackRecurringRules.bulkPut(backup.track.recurringRules);
+      if (backup.split.groups.length > 0) await db.splitGroups.bulkPut(backup.split.groups);
+      if (backup.split.members.length > 0) await db.splitGroupMembers.bulkPut(backup.split.members);
+      if (backup.split.expenses.length > 0) await db.splitExpenses.bulkPut(backup.split.expenses);
+      if (backup.split.payers.length > 0) await db.splitPayers.bulkPut(backup.split.payers);
+      if (backup.split.shares.length > 0) await db.splitShares.bulkPut(backup.split.shares);
+      if (backup.split.settlements.length > 0) await db.splitSettlements.bulkPut(backup.split.settlements);
+      if (backup.lend.ledgers.length > 0) await db.lendLedgers.bulkPut(backup.lend.ledgers);
+      if (backup.lend.entries.length > 0) await db.lendEntries.bulkPut(backup.lend.entries);
     },
   );
 }

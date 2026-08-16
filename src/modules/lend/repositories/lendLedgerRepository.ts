@@ -30,19 +30,19 @@ function clean(input: Partial<LendLedgerInput>): Partial<LendLedgerInput> {
 }
 
 export const lendLedgerRepository = {
-  /** All active ledgers, sorted by createdAt asc. */
+  /** All active, non-archived ledgers, sorted by createdAt asc. */
   async list(): Promise<LendLedger[]> {
     const all = await getDB().lendLedgers.toArray();
     return all
-      .filter((l) => !l.deletedAt)
+      .filter((l) => !l.deletedAt && !l.archived)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   },
 
-  /** All active ledgers for a person. */
+  /** All active, non-archived ledgers for a person. */
   async listForPerson(personId: string): Promise<LendLedger[]> {
-    const all = await getDB().lendLedgers.toArray();
+    const all = await getDB().lendLedgers.where('personId').equals(personId).toArray();
     return all
-      .filter((l) => !l.deletedAt && l.personId === personId)
+      .filter((l) => !l.deletedAt && !l.archived)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   },
 
@@ -53,16 +53,23 @@ export const lendLedgerRepository = {
 
   /**
    * Get the active ledger for (person, currency), or create
-   * one if it doesn't exist. Idempotent.
+   * one if it doesn't exist. The lookup and creation share a
+   * write transaction so concurrent callers cannot create two
+   * active ledgers for the same pair.
    */
   async getOrCreate(personId: string, currency: string): Promise<LendLedger> {
-    const existing = await getDB()
-      .lendLedgers.where('[personId+currency]')
-      .equals([personId, currency])
-      .filter((l) => !l.deletedAt)
-      .first();
-    if (existing) return existing;
-    return this.create({ personId, currency, archived: false });
+    const db = getDB();
+    return db.transaction('rw', db.lendLedgers, async () => {
+      const existing = await db.lendLedgers
+        .where('[personId+currency]')
+        .equals([personId, currency])
+        .filter((ledger) => !ledger.deletedAt && !ledger.archived)
+        .first();
+      if (existing) return existing;
+
+      const parsed = LendLedgerInputSchema.parse({ personId, currency, archived: false });
+      return repoCreate<LendLedger>(db.lendLedgers, clean(parsed) as CreateInput<LendLedger>);
+    });
   },
 
   /** Create a new ledger. */
@@ -81,7 +88,7 @@ export const lendLedgerRepository = {
   /**
    * Archive a ledger (logical flag). The ledger and its
    * entries remain queryable but are excluded from
-   * dashboard summaries.
+   * dashboard summaries and future quick-entry resolution.
    */
   async archive(id: string): Promise<LendLedger> {
     return this.update(id, { archived: true });

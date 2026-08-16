@@ -31,14 +31,28 @@ import type { LendEntry, LendLedger } from '@db/schema';
 // Raw table queries
 // --------------------------------------------------------------------
 
-/** All active ledgers, sorted by createdAt asc. */
+/** All active, non-archived ledgers, sorted by createdAt asc. */
 export function useLendLedgers(): LendLedger[] | undefined {
   return useLiveQuery(async () => {
     const all = await getDB().lendLedgers.toArray();
     return all
-      .filter((l) => !l.deletedAt)
+      .filter((ledger) => !ledger.deletedAt && !ledger.archived)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   }, []);
+}
+
+/** All active, non-archived ledgers for one person, sorted by createdAt asc. */
+export function useLendLedgersForPerson(personId: string | undefined): LendLedger[] | undefined {
+  return useLiveQuery(
+    async () => {
+      if (!personId) return [];
+      const rows = await getDB().lendLedgers.where('personId').equals(personId).toArray();
+      return rows
+        .filter((ledger) => !ledger.deletedAt && !ledger.archived)
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+    },
+    [personId],
+  );
 }
 
 /** A single ledger by id. */
@@ -49,7 +63,7 @@ export function useLendLedger(id: string | undefined): LendLedger | undefined {
   );
 }
 
-/** The (single, V1) active ledger for a (person, currency) pair, if any. */
+/** The active ledger for a (person, currency) pair, if any. */
 export function useLendLedgerForPerson(
   personId: string | undefined,
   currency: CurrencyCode,
@@ -57,10 +71,11 @@ export function useLendLedgerForPerson(
   return useLiveQuery(
     async () => {
       if (!personId) return undefined;
-      const all = await getDB().lendLedgers.toArray();
-      return all.find(
-        (l) => l.personId === personId && l.currency === currency && !l.deletedAt,
-      );
+      return getDB()
+        .lendLedgers.where('[personId+currency]')
+        .equals([personId, currency])
+        .filter((ledger) => !ledger.deletedAt && !ledger.archived)
+        .first();
     },
     [personId, currency],
   );
@@ -73,30 +88,31 @@ export function useLendEntriesForLedger(ledgerId: string | undefined): LendEntry
       if (!ledgerId) return [];
       const all = await getDB().lendEntries.where('ledgerId').equals(ledgerId).toArray();
       return all
-        .filter((e) => !e.deletedAt)
+        .filter((entry) => !entry.deletedAt)
         .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
     },
     [ledgerId],
   );
 }
 
-/** All active entries across all of a person's ledgers. */
+/** All active entries across all of a person's active ledgers. */
 export function useLendEntriesForPerson(personId: string | undefined): LendEntry[] | undefined {
   return useLiveQuery(
     async () => {
       if (!personId) return [];
       const db = getDB();
-      const ledgers = (await db.lendLedgers.toArray()).filter(
-        (l) => l.personId === personId && !l.deletedAt,
+      const ledgers = (await db.lendLedgers.where('personId').equals(personId).toArray()).filter(
+        (ledger) => !ledger.deletedAt && !ledger.archived,
       );
       if (ledgers.length === 0) return [];
-      const out: LendEntry[] = [];
-      for (const l of ledgers) {
-        const entries = await db.lendEntries.where('ledgerId').equals(l.id).toArray();
-        for (const e of entries) if (!e.deletedAt) out.push(e);
-      }
-      out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
-      return out;
+
+      const entryBatches = await Promise.all(
+        ledgers.map((ledger) => db.lendEntries.where('ledgerId').equals(ledger.id).toArray()),
+      );
+      return entryBatches
+        .flat()
+        .filter((entry) => !entry.deletedAt)
+        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
     },
     [personId],
   );
@@ -112,7 +128,7 @@ export function useLendDashboard(): DashboardSummary | undefined {
   const ledgers = useLendLedgers();
   const entries = useLiveQuery(async () => {
     const all = await getDB().lendEntries.toArray();
-    return all.filter((e) => !e.deletedAt);
+    return all.filter((entry) => !entry.deletedAt);
   }, []);
 
   return useMemo(() => {
@@ -134,27 +150,18 @@ export interface LendPersonDetail {
  * dashboard shows the per-currency numbers side by side.
  */
 export function useLendPersonDetail(personId: string | undefined): LendPersonDetail | undefined {
-  const ledgersAll = useLendLedgers();
-  const entriesAll = useLiveQuery(async () => {
-    const all = await getDB().lendEntries.toArray();
-    return all.filter((e) => !e.deletedAt);
-  }, []);
+  const ledgers = useLendLedgersForPerson(personId);
+  const entries = useLendEntriesForPerson(personId);
 
   return useMemo(() => {
-    if (!personId || !ledgersAll || !entriesAll) return undefined;
-    const ledgers = ledgersAll.filter((l) => l.personId === personId);
-    const ledgerIds = new Set(ledgers.map((l) => l.id));
-    const entries = entriesAll
-      .filter((e) => ledgerIds.has(e.ledgerId))
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
-    const totalBalance = personBalanceFromLedgers(ledgersAll, entriesAll, personId);
+    if (!personId || !ledgers || !entries) return undefined;
     return {
       ledgers,
-      totalBalance,
+      totalBalance: personBalanceFromLedgers(ledgers, entries, personId),
       entries,
       currency: ledgers[0]?.currency,
     };
-  }, [personId, ledgersAll, entriesAll]);
+  }, [personId, ledgers, entries]);
 }
 
 /** Recent activity across all ledgers (top N). */
@@ -178,12 +185,9 @@ export function useRecentLendEntries(limit: number = 20): LendEntry[] | undefine
  * app's defaultCurrency if the person has no ledgers yet.
  */
 export function useDefaultLendCurrency(personId: string | undefined): CurrencyCode {
-  const ledger = useLendLedgers();
+  const ledgers = useLendLedgersForPerson(personId);
   const settings = useAppSettings();
-  if (personId && ledger) {
-    const found = ledger.find((l) => l.personId === personId);
-    if (found) return found.currency;
-  }
+  if (ledgers?.[0]) return ledgers[0].currency;
   return settings?.defaultCurrency ?? 'INR';
 }
 
@@ -197,7 +201,7 @@ export function useLendPeople(): PersonSummary[] | undefined {
   const ledgers = useLendLedgers();
   const entries = useLiveQuery(async () => {
     const all = await getDB().lendEntries.toArray();
-    return all.filter((e) => !e.deletedAt);
+    return all.filter((entry) => !entry.deletedAt);
   }, []);
 
   return useMemo(() => {
