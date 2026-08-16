@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form';
 import { useState } from 'react';
 import { z } from 'zod';
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import {
   Button,
   Card,
@@ -14,30 +15,26 @@ import {
 import { PersonField } from '@shared/people/components/PersonField';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { todayDateOnly } from '@shared/dates';
+import type { CurrencyCode } from '@shared/money';
 import { lendEntryRepository } from '../repositories/lendEntryRepository';
 import { lendLedgerRepository } from '../repositories/lendLedgerRepository';
-import { LendEntryTypeSchema, type LendEntryInput } from '../domain/validation';
-import type { LendEntryType } from '@db/schema';
-import type { CurrencyCode } from '@shared/money';
-import { ArrowLeft } from 'lucide-react';
-import { useLendLedgerForPerson } from '../queries';
+import type { LendEntryInput } from '../domain/validation';
+import {
+  resolveQuickLendEntryType,
+  wouldQuickLendEntryCrossBalance,
+  type LendQuickDirection,
+} from '../domain/quickEntry';
+import { useLendPersonDetail } from '../queries';
 
 const FormSchema = z.object({
   personId: z.string().min(1, 'Please select a person'),
-  type: LendEntryTypeSchema,
-  amountMinor: z.number().int().refine((n) => n !== 0, 'Amount must not be zero'),
+  direction: z.enum(['gave', 'got']),
+  amountMinor: z.number().int().positive('Amount must be greater than zero'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date must be YYYY-MM-DD').optional().or(z.literal('')),
   note: z.string().max(500).optional().or(z.literal('')),
 });
 type FormValues = z.infer<typeof FormSchema>;
-
-const TYPE_OPTIONS: Array<{ value: LendEntryType; label: string; tone: 'emerald' | 'rose' | 'sky' }> = [
-  { value: 'lent', label: 'I lent money', tone: 'emerald' },
-  { value: 'borrowed', label: 'I borrowed money', tone: 'rose' },
-  { value: 'repayment_received', label: 'They repaid me', tone: 'sky' },
-  { value: 'repayment_given', label: 'I repaid them', tone: 'sky' },
-];
 
 function extractError(errors: ReadonlyArray<unknown>): string | undefined {
   for (const error of errors) {
@@ -52,20 +49,21 @@ function extractError(errors: ReadonlyArray<unknown>): string | undefined {
 }
 
 interface LendEntryFormProps {
-  defaultType?: LendEntryType;
+  defaultDirection?: LendQuickDirection;
   defaultPersonId?: string;
   onSaved?: (entryId: string) => void;
   onCancel?: () => void;
 }
 
-function typeHelp(type: LendEntryType): string {
-  switch (type) {
-    case 'lent': return 'Money you gave this person. This increases what they owe you.';
-    case 'borrowed': return 'Money you received from this person. This increases what you owe them.';
-    case 'repayment_received': return 'A payment you received from this person.';
-    case 'repayment_given': return 'A payment you made to this person.';
-    case 'adjustment': return 'Balance adjustment.';
+function directionHelp(direction: LendQuickDirection, balanceMinor: number): string {
+  if (direction === 'gave') {
+    return balanceMinor < 0
+      ? 'This counts as repayment against what you owe them.'
+      : 'Money left you. This increases what they owe you.';
   }
+  return balanceMinor > 0
+    ? 'This counts as their repayment against what they owe you.'
+    : 'Money came to you. This increases what you owe them.';
 }
 
 export function LendEntryForm(props: LendEntryFormProps) {
@@ -76,18 +74,26 @@ export function LendEntryForm(props: LendEntryFormProps) {
   return <ReadyLendEntryForm {...props} defaultCurrency={settings.defaultCurrency} />;
 }
 
-function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurrency, onSaved, onCancel }: LendEntryFormProps & { defaultCurrency: CurrencyCode }) {
+function ReadyLendEntryForm({
+  defaultDirection = 'gave',
+  defaultPersonId,
+  defaultCurrency,
+  onSaved,
+  onCancel,
+}: LendEntryFormProps & { defaultCurrency: CurrencyCode }) {
   const toast = useToast();
   const { celebrate } = useCelebration();
   const [submitting, setSubmitting] = useState(false);
   const [personId, setPersonId] = useState<string | undefined>(defaultPersonId);
-  const existingLedger = useLendLedgerForPerson(personId, defaultCurrency);
-  const resolvedCurrency: CurrencyCode = existingLedger?.currency ?? defaultCurrency;
+  const detail = useLendPersonDetail(personId);
+  const currentBalanceMinor = detail?.totalBalance ?? 0;
+  const resolvedCurrency = (detail?.currency ?? defaultCurrency) as CurrencyCode;
+  const balanceReady = !personId || detail !== undefined;
 
   const form = useForm({
     defaultValues: {
       personId: defaultPersonId ?? '',
-      type: defaultType,
+      direction: defaultDirection,
       amountMinor: 0,
       date: todayDateOnly(),
       dueDate: '',
@@ -98,18 +104,23 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
       setSubmitting(true);
       try {
         if (!value.personId) throw new Error('Please select a person');
+        if (!detail) throw new Error('Please wait for this balance to load');
+        if (wouldQuickLendEntryCrossBalance(value.direction, currentBalanceMinor, value.amountMinor)) {
+          throw new Error('This would cross the current balance. Settle it first, then record the remainder separately.');
+        }
+
         const ledger = await lendLedgerRepository.getOrCreate(value.personId, resolvedCurrency);
+        const type = resolveQuickLendEntryType(value.direction, currentBalanceMinor);
         const cleaned: LendEntryInput = {
           ledgerId: ledger.id,
-          type: value.type,
+          type,
           amountMinor: value.amountMinor,
           date: value.date,
           dueDate: value.dueDate || undefined,
           note: typeof value.note === 'string' ? value.note.trim() || undefined : undefined,
         };
         const created = await lendEntryRepository.create(cleaned);
-        const repayment = value.type === 'repayment_received' || value.type === 'repayment_given';
-        const message = repayment ? 'Repayment recorded' : 'Entry added';
+        const message = value.direction === 'gave' ? 'Amount given recorded' : 'Amount received recorded';
         toast.show(message, { variant: 'success' });
         celebrate({ kind: 'added', message });
         onSaved?.(created.id);
@@ -126,43 +137,9 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
         <button type="button" onClick={onCancel} aria-label="Back" className="icon-button"><ArrowLeft size={18} /></button>
         <div>
           <span className="module-chip mb-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Lend</span>
-          <h1 className="text-xl font-semibold tracking-[-0.035em]">Add entry</h1>
+          <h1 className="text-xl font-semibold tracking-[-0.035em]">Add Lend entry</h1>
         </div>
       </header>
-
-      <Card>
-        <form.Field name="type">
-          {(field) => (
-            <div className="space-y-3">
-              <label className="label">What happened?</label>
-              <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
-                {TYPE_OPTIONS.map((option) => {
-                  const active = field.state.value === option.value;
-                  const activeClass = option.tone === 'emerald'
-                    ? 'border-emerald-500/25 bg-emerald-500/[0.09] text-emerald-700 dark:text-emerald-200'
-                    : option.tone === 'rose'
-                      ? 'border-rose-500/25 bg-rose-500/[0.08] text-rose-700 dark:text-rose-200'
-                      : 'border-sky-500/25 bg-sky-500/[0.08] text-sky-700 dark:text-sky-200';
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => field.handleChange(option.value)}
-                      aria-pressed={active}
-                      className={active
-                        ? `min-h-12 rounded-[16px] border px-3 py-2 text-sm font-semibold shadow-soft-xs transition-[transform,border-color,background-color] duration-200 active:scale-[0.98] ${activeClass}`
-                        : 'min-h-12 rounded-[16px] border border-slate-900/[0.06] bg-white/60 px-3 py-2 text-sm font-medium text-slate-500 transition-[transform,border-color,background-color,color] duration-200 hover:border-slate-900/[0.1] hover:bg-white hover:text-slate-900 active:scale-[0.98] dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-slate-400 dark:hover:bg-white/[0.055] dark:hover:text-white'}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs leading-5 text-slate-500">{typeHelp(field.state.value)}</p>
-            </div>
-          )}
-        </form.Field>
-      </Card>
 
       <Card>
         <div className="space-y-4">
@@ -180,7 +157,56 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
               />
             )}
           </form.Field>
-          <form.Field name="amountMinor">{(field) => <MoneyInput label="Amount" value={field.state.value} currency={resolvedCurrency} onChange={(value) => field.handleChange(value)} error={extractError(field.state.meta.errors)} />}</form.Field>
+
+          <form.Field name="direction">
+            {(field) => (
+              <div className="space-y-3">
+                <label className="label">What happened?</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => field.handleChange('gave')}
+                    aria-pressed={field.state.value === 'gave'}
+                    className={field.state.value === 'gave'
+                      ? 'flex min-h-16 items-center justify-center gap-2 rounded-[17px] border border-rose-500/25 bg-rose-500/[0.09] px-3 text-sm font-semibold text-rose-700 shadow-soft-xs transition-transform active:scale-[0.98] dark:text-rose-200'
+                      : 'flex min-h-16 items-center justify-center gap-2 rounded-[17px] border border-slate-900/[0.06] bg-white/60 px-3 text-sm font-semibold text-slate-500 transition-[transform,border-color,background-color,color] hover:border-rose-500/15 hover:bg-rose-500/[0.04] hover:text-rose-700 active:scale-[0.98] dark:border-white/[0.07] dark:bg-white/[0.03] dark:hover:text-rose-200'}
+                  >
+                    <ArrowUpRight size={17} /> You gave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => field.handleChange('got')}
+                    aria-pressed={field.state.value === 'got'}
+                    className={field.state.value === 'got'
+                      ? 'flex min-h-16 items-center justify-center gap-2 rounded-[17px] border border-emerald-500/25 bg-emerald-500/[0.09] px-3 text-sm font-semibold text-emerald-700 shadow-soft-xs transition-transform active:scale-[0.98] dark:text-emerald-200'
+                      : 'flex min-h-16 items-center justify-center gap-2 rounded-[17px] border border-slate-900/[0.06] bg-white/60 px-3 text-sm font-semibold text-slate-500 transition-[transform,border-color,background-color,color] hover:border-emerald-500/15 hover:bg-emerald-500/[0.04] hover:text-emerald-700 active:scale-[0.98] dark:border-white/[0.07] dark:bg-white/[0.03] dark:hover:text-emerald-200'}
+                  >
+                    <ArrowDownLeft size={17} /> You got
+                  </button>
+                </div>
+                <p className="text-xs leading-5 text-slate-500">
+                  {personId && !balanceReady ? 'Loading this person’s balance…' : directionHelp(field.state.value, currentBalanceMinor)}
+                </p>
+              </div>
+            )}
+          </form.Field>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="space-y-4">
+          <form.Field name="amountMinor">
+            {(field) => (
+              <MoneyInput
+                label="Amount"
+                value={field.state.value}
+                currency={resolvedCurrency}
+                onChange={(value) => field.handleChange(value)}
+                error={extractError(field.state.meta.errors)}
+                autoFocus={!!defaultPersonId}
+              />
+            )}
+          </form.Field>
           <form.Field name="date">{(field) => <DateInput label="Date" value={field.state.value} onChange={(date) => field.handleChange(date)} error={extractError(field.state.meta.errors)} />}</form.Field>
           <details className="rounded-[17px] border border-slate-900/[0.06] bg-slate-900/[0.02] px-3.5 py-3 dark:border-white/[0.07] dark:bg-white/[0.025]">
             <summary className="cursor-pointer text-sm font-semibold tracking-[-0.01em]">More details</summary>
@@ -194,7 +220,7 @@ function ReadyLendEntryForm({ defaultType = 'lent', defaultPersonId, defaultCurr
 
       <div className="grid grid-cols-2 gap-2.5">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting} size="lg">Cancel</Button>
-        <Button type="submit" disabled={submitting} size="lg">{submitting ? 'Saving…' : 'Save entry'}</Button>
+        <Button type="submit" disabled={submitting || !balanceReady} size="lg">{submitting ? 'Saving…' : 'Save entry'}</Button>
       </div>
     </form>
   );
