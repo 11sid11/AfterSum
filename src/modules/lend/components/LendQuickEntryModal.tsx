@@ -23,6 +23,9 @@ interface LendQuickEntryModalProps {
   onClose: () => void;
 }
 
+const CROSS_BALANCE_MESSAGE =
+  'This would cross the current balance. Settle it first, then record the remainder separately.';
+
 export function LendQuickEntryModal({
   open,
   direction,
@@ -55,6 +58,7 @@ export function LendQuickEntryModal({
     currentBalanceMinor,
     amountMinor,
   );
+  const amountError = error ?? (crossesBalance ? CROSS_BALANCE_MESSAGE : undefined);
   const title = direction === 'gave' ? `You gave ${person.name}` : `You got from ${person.name}`;
   const isRepayment = limitMinor !== undefined;
 
@@ -66,7 +70,7 @@ export function LendQuickEntryModal({
       return;
     }
     if (crossesBalance) {
-      setError('This would cross the current balance. Settle it first, then record the remainder separately.');
+      setError(CROSS_BALANCE_MESSAGE);
       return;
     }
 
@@ -84,7 +88,7 @@ export function LendQuickEntryModal({
       });
 
       const settled = limitMinor !== undefined && amountMinor === limitMinor;
-      const message = settled ? 'Balance settled' : direction === 'gave' ? 'Amount given recorded' : 'Amount received recorded';
+      const message = settled ? 'Balance settled' : 'Entry recorded';
       toast.show(message, { variant: 'success' });
       celebrate({ kind: 'added', message });
       onClose();
@@ -124,7 +128,7 @@ export function LendQuickEntryModal({
             if (error) setError(undefined);
           }}
           autoFocus
-          error={error}
+          error={amountError}
         />
 
         {limitMinor !== undefined && (
