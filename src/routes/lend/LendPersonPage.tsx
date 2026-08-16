@@ -1,6 +1,7 @@
 /** Lend person detail page. */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { Card, EmptyState, Money, Spinner } from '@components/ui';
@@ -14,6 +15,46 @@ import {
   runningBalanceByEntryId,
   type LendQuickDirection,
 } from '@modules/lend/domain/quickEntry';
+
+interface LendQuickActionsProps {
+  mobile?: boolean;
+  onSelect: (direction: LendQuickDirection) => void;
+}
+
+function LendQuickActions({ mobile = false, onSelect }: LendQuickActionsProps) {
+  return (
+    <div
+      className={
+        mobile
+          ? 'fixed inset-x-0 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] z-20 px-4 sm:hidden'
+          : 'hidden sm:block'
+      }
+    >
+      <div
+        className={
+          mobile
+            ? 'mx-auto grid max-w-md grid-cols-2 gap-2 rounded-[20px] border border-slate-900/[0.07] bg-white/[0.96] p-2 shadow-[0_-8px_28px_rgb(15_23_42/0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#141821]/[0.96] dark:shadow-none'
+            : 'grid grid-cols-2 gap-2'
+        }
+      >
+        <button
+          type="button"
+          onClick={() => onSelect('gave')}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-[15px] border border-rose-500/20 bg-rose-500/[0.08] px-4 text-sm font-semibold text-rose-700 transition-[transform,background-color] hover:bg-rose-500/[0.12] active:scale-[0.98] dark:text-rose-300"
+        >
+          <ArrowUpRight size={17} /> You gave
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelect('got')}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-[15px] border border-emerald-500/20 bg-emerald-500/[0.08] px-4 text-sm font-semibold text-emerald-700 transition-[transform,background-color] hover:bg-emerald-500/[0.12] active:scale-[0.98] dark:text-emerald-300"
+        >
+          <ArrowDownLeft size={17} /> You got
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function LendPersonPage() {
   const { personId } = useParams({ strict: false }) as { personId: string };
@@ -41,6 +82,11 @@ export function LendPersonPage() {
       : totalBalance < 0
         ? `You owe ${person.name}`
         : 'Settled up';
+  const handleQuickAction = (direction: LendQuickDirection) => setQuickDirection(direction);
+  const mobileQuickActions =
+    typeof document === 'undefined'
+      ? null
+      : createPortal(<LendQuickActions mobile onSelect={handleQuickAction} />, document.body);
 
   return (
     <div className="space-y-4 pb-20 sm:pb-0">
@@ -84,24 +130,8 @@ export function LendPersonPage() {
         </p>
       </Card>
 
-      <div className="fixed inset-x-0 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] z-20 px-4 sm:static sm:px-0">
-        <div className="mx-auto grid max-w-md grid-cols-2 gap-2 rounded-[20px] border border-slate-900/[0.07] bg-white/[0.96] p-2 shadow-[0_-8px_28px_rgb(15_23_42/0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#141821]/[0.96] dark:shadow-none sm:max-w-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none">
-          <button
-            type="button"
-            onClick={() => setQuickDirection('gave')}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-[15px] border border-rose-500/20 bg-rose-500/[0.08] px-4 text-sm font-semibold text-rose-700 transition-[transform,background-color] hover:bg-rose-500/[0.12] active:scale-[0.98] dark:text-rose-300"
-          >
-            <ArrowUpRight size={17} /> You gave
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickDirection('got')}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-[15px] border border-emerald-500/20 bg-emerald-500/[0.08] px-4 text-sm font-semibold text-emerald-700 transition-[transform,background-color] hover:bg-emerald-500/[0.12] active:scale-[0.98] dark:text-emerald-300"
-          >
-            <ArrowDownLeft size={17} /> You got
-          </button>
-        </div>
-      </div>
+      <LendQuickActions onSelect={handleQuickAction} />
+      {mobileQuickActions}
 
       {entries.length === 0 ? (
         <Card>
