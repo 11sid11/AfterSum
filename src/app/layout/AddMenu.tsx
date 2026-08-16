@@ -12,8 +12,8 @@ export function AddMenu({ onClose }: AddMenuProps) {
   const items = [
     { label: 'Personal expense', hint: 'Track', to: '/track/add', search: { type: 'expense' as const }, icon: Receipt, tone: 'bg-rose-500/[0.09] text-rose-600 dark:text-rose-300' },
     { label: 'Income', hint: 'Track', to: '/track/add', search: { type: 'income' as const }, icon: TrendingUp, tone: 'bg-emerald-500/[0.09] text-emerald-600 dark:text-emerald-300' },
-    { label: 'Lent money', hint: 'Lend', to: '/lend/add', search: { type: 'lent' as const }, icon: ArrowUpFromLine, tone: 'bg-sky-500/[0.09] text-sky-600 dark:text-sky-300' },
-    { label: 'Borrowed money', hint: 'Lend', to: '/lend/add', search: { type: 'borrowed' as const }, icon: ArrowDownToLine, tone: 'bg-amber-500/[0.09] text-amber-700 dark:text-amber-300' },
+    { label: 'You gave money', hint: 'Lend', to: '/lend/add', search: { direction: 'gave' as const }, icon: ArrowUpFromLine, tone: 'bg-rose-500/[0.09] text-rose-600 dark:text-rose-300' },
+    { label: 'You got money', hint: 'Lend', to: '/lend/add', search: { direction: 'got' as const }, icon: ArrowDownToLine, tone: 'bg-emerald-500/[0.09] text-emerald-600 dark:text-emerald-300' },
   ];
 
   return (
