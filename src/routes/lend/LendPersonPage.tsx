@@ -84,7 +84,7 @@ export function LendPersonPage() {
         </p>
       </Card>
 
-      <div className="fixed inset-x-0 bottom-[4.7rem] z-20 px-4 sm:static sm:px-0">
+      <div className="fixed inset-x-0 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] z-20 px-4 sm:static sm:px-0">
         <div className="mx-auto grid max-w-md grid-cols-2 gap-2 rounded-[20px] border border-slate-900/[0.07] bg-white/[0.96] p-2 shadow-[0_-8px_28px_rgb(15_23_42/0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#141821]/[0.96] dark:shadow-none sm:max-w-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none">
           <button
             type="button"
