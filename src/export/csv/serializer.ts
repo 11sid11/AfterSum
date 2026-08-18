@@ -29,7 +29,7 @@ import type {
   LendLedger,
   LendEntry,
 } from '@db/schema';
-import { minorToDecimal } from '@shared/money';
+import { minorToDecimalString } from '@shared/money';
 
 const BOM = '\uFEFF';
 
@@ -42,15 +42,15 @@ function escapeField(v: string | number | undefined | null): string {
   return s;
 }
 
-function row(values: Array<string | number | undefined | null>): string {
+export function csvRow(values: Array<string | number | undefined | null>): string {
   return values.map(escapeField).join(',');
 }
 
 export function csvOfPeople(people: Person[]): string {
   const lines: string[] = [];
-  lines.push(row(['person_id', 'name', 'is_self', 'phone', 'email', 'note', 'created_at']));
+  lines.push(csvRow(['person_id', 'name', 'is_self', 'phone', 'email', 'note', 'created_at']));
   for (const p of people) {
-    lines.push(row([p.id, p.name, p.isSelf ? 'true' : 'false', p.phone, p.email, p.note, p.createdAt]));
+    lines.push(csvRow([p.id, p.name, p.isSelf ? 'true' : 'false', p.phone, p.email, p.note, p.createdAt]));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
@@ -58,12 +58,11 @@ export function csvOfPeople(people: Person[]): string {
 export function csvOfTrackTransactions(
   txs: TrackTransaction[],
   categories: TrackCategory[],
-  currency: string,
 ): string {
   const catMap = new Map(categories.map((c) => [c.id, c.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'transaction_id',
       'date',
       'type',
@@ -79,12 +78,12 @@ export function csvOfTrackTransactions(
   );
   for (const t of txs) {
     lines.push(
-      row([
+      csvRow([
         t.id,
         t.date,
         t.type,
         t.title,
-        minorToDecimal(t.amountMinor, currency).toFixed(2),
+        minorToDecimalString(t.amountMinor, t.currency),
         t.amountMinor,
         t.currency,
         t.categoryId,
@@ -99,19 +98,19 @@ export function csvOfTrackTransactions(
 
 export function csvOfTrackCategories(cats: TrackCategory[]): string {
   const lines: string[] = [];
-  lines.push(row(['category_id', 'name', 'type', 'icon', 'archived']));
+  lines.push(csvRow(['category_id', 'name', 'type', 'icon', 'archived']));
   for (const c of cats) {
-    lines.push(row([c.id, c.name, c.type, c.icon, c.archived ? 'true' : 'false']));
+    lines.push(csvRow([c.id, c.name, c.type, c.icon, c.archived ? 'true' : 'false']));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
 
 export function csvOfTrackBudgets(b: TrackBudget[]): string {
   const lines: string[] = [];
-  lines.push(row(['month', 'amount', 'amount_minor', 'currency']));
+  lines.push(csvRow(['month', 'amount', 'amount_minor', 'currency']));
   for (const x of b) {
     lines.push(
-      row([x.month, minorToDecimal(x.amountMinor, x.currency).toFixed(2), x.amountMinor, x.currency]),
+      csvRow([x.month, minorToDecimalString(x.amountMinor, x.currency), x.amountMinor, x.currency]),
     );
   }
   return BOM + lines.join('\r\n') + '\r\n';
@@ -119,14 +118,14 @@ export function csvOfTrackBudgets(b: TrackBudget[]): string {
 
 export function csvOfTrackRecurring(r: TrackRecurringRule[]): string {
   const lines: string[] = [];
-  lines.push(row(['rule_id', 'title', 'amount', 'amount_minor', 'currency', 'frequency', 'next_date', 'enabled']));
+  lines.push(csvRow(['rule_id', 'title', 'amount', 'amount_minor', 'currency', 'frequency', 'next_date', 'enabled']));
   for (const x of r) {
     const amountMinor = x.amountMinor ?? 0;
     lines.push(
-      row([
+      csvRow([
         x.id,
         x.title,
-        x.amountMinor !== undefined ? minorToDecimal(amountMinor, x.currency).toFixed(2) : '',
+        x.amountMinor !== undefined ? minorToDecimalString(amountMinor, x.currency) : '',
         x.amountMinor ?? '',
         x.currency,
         x.frequency,
@@ -140,9 +139,9 @@ export function csvOfTrackRecurring(r: TrackRecurringRule[]): string {
 
 export function csvOfSplitGroups(g: SplitGroup[]): string {
   const lines: string[] = [];
-  lines.push(row(['group_id', 'name', 'description', 'currency', 'archived', 'created_at']));
+  lines.push(csvRow(['group_id', 'name', 'description', 'currency', 'archived', 'created_at']));
   for (const x of g) {
-    lines.push(row([x.id, x.name, x.description, x.currency, x.archived ? 'true' : 'false', x.createdAt]));
+    lines.push(csvRow([x.id, x.name, x.description, x.currency, x.archived ? 'true' : 'false', x.createdAt]));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
@@ -151,10 +150,10 @@ export function csvOfSplitMembers(m: SplitGroupMember[], people: Person[]): stri
   const pMap = new Map(people.map((p) => [p.id, p.name]));
   const lines: string[] = [];
   lines.push(
-    row(['member_id', 'group_id', 'person_id', 'person_name', 'active', 'joined_at']),
+    csvRow(['member_id', 'group_id', 'person_id', 'person_name', 'active', 'joined_at']),
   );
   for (const x of m) {
-    lines.push(row([x.id, x.groupId, x.personId, pMap.get(x.personId) ?? '', x.active ? 'true' : 'false', x.joinedAt]));
+    lines.push(csvRow([x.id, x.groupId, x.personId, pMap.get(x.personId) ?? '', x.active ? 'true' : 'false', x.joinedAt]));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
@@ -166,7 +165,7 @@ export function csvOfSplitExpenses(
   const gMap = new Map(groups.map((g) => [g.id, g.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'expense_id',
       'date',
       'group_id',
@@ -182,13 +181,13 @@ export function csvOfSplitExpenses(
   );
   for (const x of e) {
     lines.push(
-      row([
+      csvRow([
         x.id,
         x.date,
         x.groupId,
         gMap.get(x.groupId) ?? '',
         x.title,
-        minorToDecimal(x.amountMinor, x.currency).toFixed(2),
+        minorToDecimalString(x.amountMinor, x.currency),
         x.amountMinor,
         x.currency,
         x.category ?? '',
@@ -201,11 +200,11 @@ export function csvOfSplitExpenses(
 }
 
 export function csvOfSplitPayers(p: SplitPayer[], expenses: SplitExpense[], people: Person[]): string {
-  const eMap = new Map(expenses.map((e) => [e.id, e.title]));
-  const pMap = new Map(people.map((p) => [p.id, p.name]));
+  const eMap = new Map(expenses.map((e) => [e.id, e]));
+  const pMap = new Map(people.map((person) => [person.id, person.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'expense_id',
       'expense_title',
       'person_id',
@@ -216,16 +215,16 @@ export function csvOfSplitPayers(p: SplitPayer[], expenses: SplitExpense[], peop
     ]),
   );
   for (const x of p) {
-    const ex = expenses.find((e) => e.id === x.expenseId);
+    const expense = eMap.get(x.expenseId);
     lines.push(
-      row([
+      csvRow([
         x.expenseId,
-        eMap.get(x.expenseId) ?? '',
+        expense?.title ?? '',
         x.personId,
         pMap.get(x.personId) ?? '',
-        ex ? minorToDecimal(x.amountMinor, ex.currency).toFixed(2) : '',
+        expense ? minorToDecimalString(x.amountMinor, expense.currency) : '',
         x.amountMinor,
-        ex?.currency ?? '',
+        expense?.currency ?? '',
       ]),
     );
   }
@@ -233,11 +232,11 @@ export function csvOfSplitPayers(p: SplitPayer[], expenses: SplitExpense[], peop
 }
 
 export function csvOfSplitShares(s: SplitShare[], expenses: SplitExpense[], people: Person[]): string {
-  const eMap = new Map(expenses.map((e) => [e.id, e.title]));
-  const pMap = new Map(people.map((p) => [p.id, p.name]));
+  const eMap = new Map(expenses.map((e) => [e.id, e]));
+  const pMap = new Map(people.map((person) => [person.id, person.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'expense_id',
       'expense_title',
       'person_id',
@@ -248,16 +247,16 @@ export function csvOfSplitShares(s: SplitShare[], expenses: SplitExpense[], peop
     ]),
   );
   for (const x of s) {
-    const ex = expenses.find((e) => e.id === x.expenseId);
+    const expense = eMap.get(x.expenseId);
     lines.push(
-      row([
+      csvRow([
         x.expenseId,
-        eMap.get(x.expenseId) ?? '',
+        expense?.title ?? '',
         x.personId,
         pMap.get(x.personId) ?? '',
-        ex ? minorToDecimal(x.amountMinor, ex.currency).toFixed(2) : '',
+        expense ? minorToDecimalString(x.amountMinor, expense.currency) : '',
         x.amountMinor,
-        ex?.currency ?? '',
+        expense?.currency ?? '',
       ]),
     );
   }
@@ -269,7 +268,7 @@ export function csvOfSplitSettlements(s: SplitSettlement[], groups: SplitGroup[]
   const pMap = new Map(people.map((p) => [p.id, p.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'settlement_id',
       'date',
       'group_id',
@@ -286,7 +285,7 @@ export function csvOfSplitSettlements(s: SplitSettlement[], groups: SplitGroup[]
   );
   for (const x of s) {
     lines.push(
-      row([
+      csvRow([
         x.id,
         x.date,
         x.groupId,
@@ -295,7 +294,7 @@ export function csvOfSplitSettlements(s: SplitSettlement[], groups: SplitGroup[]
         pMap.get(x.fromPersonId) ?? '',
         x.toPersonId,
         pMap.get(x.toPersonId) ?? '',
-        minorToDecimal(x.amountMinor, x.currency).toFixed(2),
+        minorToDecimalString(x.amountMinor, x.currency),
         x.amountMinor,
         x.currency,
         x.note,
@@ -309,10 +308,10 @@ export function csvOfLendLedgers(l: LendLedger[], people: Person[]): string {
   const pMap = new Map(people.map((p) => [p.id, p.name]));
   const lines: string[] = [];
   lines.push(
-    row(['ledger_id', 'person_id', 'person_name', 'currency', 'label', 'archived']),
+    csvRow(['ledger_id', 'person_id', 'person_name', 'currency', 'label', 'archived']),
   );
   for (const x of l) {
-    lines.push(row([x.id, x.personId, pMap.get(x.personId) ?? '', x.currency, x.label, x.archived ? 'true' : 'false']));
+    lines.push(csvRow([x.id, x.personId, pMap.get(x.personId) ?? '', x.currency, x.label, x.archived ? 'true' : 'false']));
   }
   return BOM + lines.join('\r\n') + '\r\n';
 }
@@ -322,7 +321,7 @@ export function csvOfLendEntries(e: LendEntry[], ledgers: LendLedger[], people: 
   const pMap = new Map(people.map((p) => [p.id, p.name]));
   const lines: string[] = [];
   lines.push(
-    row([
+    csvRow([
       'entry_id',
       'date',
       'ledger_id',
@@ -341,14 +340,14 @@ export function csvOfLendEntries(e: LendEntry[], ledgers: LendLedger[], people: 
     const currency = ledger?.currency ?? '';
     const personId = ledger?.personId ?? '';
     lines.push(
-      row([
+      csvRow([
         x.id,
         x.date,
         x.ledgerId,
         personId,
         pMap.get(personId) ?? '',
         x.type,
-        minorToDecimal(x.amountMinor, currency).toFixed(2),
+        ledger ? minorToDecimalString(x.amountMinor, currency) : '',
         x.amountMinor,
         currency,
         x.dueDate,
