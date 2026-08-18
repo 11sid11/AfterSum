@@ -2,34 +2,15 @@
 
 import { Link } from '@tanstack/react-router';
 import { Card, Toggle, Spinner, CurrencyPicker, useToast } from '@components/ui';
-import { useAppSettings } from '@shared/settings/useSettings';
+import { useAppSettings, useSettingsStats } from '@shared/settings/useSettings';
 import { settingsRepository } from '@shared/settings/repository';
 import { Users, Database, ChevronRight, Eye, EyeOff, Sun, Moon, Monitor } from 'lucide-react';
 import clsx from 'clsx';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { getDB } from '@db/database';
 
 export function SettingsPage() {
   const settings = useAppSettings();
+  const stats = useSettingsStats();
   const toast = useToast();
-
-  const stats = useLiveQuery(async () => {
-    const db = getDB();
-    const [peopleRows, track, groups, lendLedgers, budgets] = await Promise.all([
-      db.people.toArray(),
-      db.trackTransactions.count(),
-      db.splitGroups.count(),
-      db.lendLedgers.count(),
-      db.trackBudgets.count(),
-    ]);
-    return {
-      people: peopleRows.filter((person) => !person.deletedAt).length,
-      track,
-      groups,
-      lendLedgers,
-      budgets,
-    };
-  }, []);
 
   if (!settings) return <Spinner />;
   const hasFinancialData = !!stats && stats.track + stats.groups + stats.lendLedgers + stats.budgets > 0;
@@ -38,6 +19,17 @@ export function SettingsPage() {
     void settingsRepository.setTheme(mode).catch((error) => {
       toast.show(error instanceof Error ? error.message : 'Could not change theme', { variant: 'error' });
     });
+  };
+
+  const setPrivacyMode = async (value: boolean) => {
+    try {
+      await settingsRepository.setHideAmounts(value);
+      toast.show(value ? 'Privacy mode on' : 'Privacy mode off');
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : 'Could not change privacy mode', {
+        variant: 'error',
+      });
+    }
   };
 
   const themeButton = (mode: 'system' | 'light' | 'dark', icon: React.ReactNode, label: string) => (
@@ -85,10 +77,7 @@ export function SettingsPage() {
             </div>
             <Toggle
               checked={settings.hideAmounts}
-              onChange={(value) => {
-                void settingsRepository.setHideAmounts(value);
-                toast.show(value ? 'Privacy mode on' : 'Privacy mode off');
-              }}
+              onChange={(value) => void setPrivacyMode(value)}
               id="privacy-toggle"
             />
             <span className="sr-only">{settings.hideAmounts ? <EyeOff size={18} /> : <Eye size={18} />}</span>
