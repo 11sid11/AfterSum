@@ -195,31 +195,68 @@ export interface Backup {
   };
 }
 
-/** Build a deep snapshot of the local financial database. */
+/** Build one transactionally-consistent snapshot of the local financial database. */
 export async function exportBackup(): Promise<Backup> {
   const db = getDB();
-  const [settings, people, track, split, lend] = await Promise.all([
-    settingsRepository.get(),
-    db.people.toArray(),
-    db.trackTransactions.toArray().then(async (transactions) => ({
-      transactions,
-      categories: await db.trackCategories.toArray(),
-      budgets: await db.trackBudgets.toArray(),
-      recurringRules: await db.trackRecurringRules.toArray(),
-    })),
-    db.splitGroups.toArray().then(async (groups) => ({
-      groups,
-      members: await db.splitGroupMembers.toArray(),
-      expenses: await db.splitExpenses.toArray(),
-      payers: await db.splitPayers.toArray(),
-      shares: await db.splitShares.toArray(),
-      settlements: await db.splitSettlements.toArray(),
-    })),
-    db.lendLedgers.toArray().then(async (ledgers) => ({
-      ledgers,
-      entries: await db.lendEntries.toArray(),
-    })),
-  ]);
+
+  // Ensure first-run defaults exist before opening the read-only snapshot.
+  await settingsRepository.get();
+
+  const [
+    settings,
+    people,
+    transactions,
+    categories,
+    budgets,
+    recurringRules,
+    groups,
+    members,
+    expenses,
+    payers,
+    shares,
+    settlements,
+    ledgers,
+    entries,
+  ] = await db.transaction(
+    'r',
+    [
+      db.settings,
+      db.people,
+      db.trackTransactions,
+      db.trackCategories,
+      db.trackBudgets,
+      db.trackRecurringRules,
+      db.splitGroups,
+      db.splitGroupMembers,
+      db.splitExpenses,
+      db.splitPayers,
+      db.splitShares,
+      db.splitSettlements,
+      db.lendLedgers,
+      db.lendEntries,
+    ],
+    async () =>
+      Promise.all([
+        db.settings.get('app'),
+        db.people.toArray(),
+        db.trackTransactions.toArray(),
+        db.trackCategories.toArray(),
+        db.trackBudgets.toArray(),
+        db.trackRecurringRules.toArray(),
+        db.splitGroups.toArray(),
+        db.splitGroupMembers.toArray(),
+        db.splitExpenses.toArray(),
+        db.splitPayers.toArray(),
+        db.splitShares.toArray(),
+        db.splitSettlements.toArray(),
+        db.lendLedgers.toArray(),
+        db.lendEntries.toArray(),
+      ]),
+  );
+
+  if (!settings) {
+    throw new Error('App settings are unavailable, so a complete backup cannot be created.');
+  }
 
   return {
     format: BACKUP_FORMAT,
@@ -230,9 +267,9 @@ export async function exportBackup(): Promise<Backup> {
       people,
       settings: { defaultCurrency: settings.defaultCurrency },
     },
-    track,
-    split,
-    lend,
+    track: { transactions, categories, budgets, recurringRules },
+    split: { groups, members, expenses, payers, shares, settlements },
+    lend: { ledgers, entries },
   };
 }
 
