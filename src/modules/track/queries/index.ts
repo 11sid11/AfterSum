@@ -17,6 +17,7 @@ import {
   filterTransactions,
   monthlyTotal as monthlyTotalCalc,
   paymentMethodTotals as paymentMethodTotalsCalc,
+  recentTransactions as recentTransactionsCalc,
 } from '../services/aggregations';
 import type { TrackTransaction, TrackCategory, TrackBudget, TrackRecurringRule } from '@db/schema';
 import type {
@@ -72,7 +73,7 @@ export function useTrackTransactionsForMonth(
         .trackTransactions.where('date')
         .between(fromInclusive, toExclusive, true, false)
         .toArray();
-      const filtered = filterTransactions(monthRows, filters);
+      const filtered = filterTransactions(monthRows, { ...filters, month });
       if (!categoriesById) return filtered.map((t) => ({ ...t }));
       return decorateWithCategory(filtered, categoriesById);
     },
@@ -196,12 +197,10 @@ export function useRecentTrackTransactions(limit = 5): TrackTransactionWithCateg
   const categoriesById = useTrackCategoryMap();
   return useLiveQuery(
     async () => {
-      const recent = await getDB()
-        .trackTransactions.orderBy('date')
-        .reverse()
-        .filter((transaction) => !transaction.deletedAt)
-        .limit(limit)
-        .toArray();
+      // Keep the established date + createdAt tie-breaker. The date index alone
+      // cannot preserve that ordering for multiple transactions on the same day.
+      const all = await getDB().trackTransactions.toArray();
+      const recent = recentTransactionsCalc(all, limit);
       if (!categoriesById) return recent.map((t) => ({ ...t }));
       return decorateWithCategory(recent, categoriesById);
     },
