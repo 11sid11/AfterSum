@@ -3,7 +3,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDB } from '@db/database';
 import { SELF_PERSON_ID } from '@db/seed';
-import { isInMonth, monthDateRange, toMonthKey } from '@shared/dates';
+import { monthDateRange, toMonthKey } from '@shared/dates';
 import { settingsRepository } from '@shared/settings/repository';
 import { trackBudgetRepository } from '@modules/track/repositories/trackBudgetRepository';
 import { computeMemberBalances } from '@modules/split/domain/balances';
@@ -20,6 +20,7 @@ import type { CurrencyCode } from '@shared/money';
 import type {
   LendEntry,
   SplitExpense,
+  SplitGroup,
   SplitGroupMember,
   SplitPayer,
   SplitSettlement,
@@ -249,7 +250,9 @@ export function usePersonExposure(personId: string): PersonExposure | null | und
         db.splitExpenses.where('groupId').anyOf(groupIds).toArray(),
         db.splitSettlements.where('groupId').anyOf(groupIds).toArray(),
       ]);
-      const groups = groupRows.filter((group) => group !== undefined && !group.deletedAt);
+      const groups = groupRows.filter(
+        (group): group is SplitGroup => group !== undefined && !group.deletedAt,
+      );
       const activeMembers = allMembers.filter((member) => !member.deletedAt);
       const activeExpenses = expenses.filter((expense) => !expense.deletedAt);
       const activeSettlements = settlements.filter((settlement) => !settlement.deletedAt);
