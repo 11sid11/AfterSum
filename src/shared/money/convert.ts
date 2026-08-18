@@ -42,3 +42,20 @@ export function minorToDecimal(amountMinor: number, currency: CurrencyCode): num
   const num = Number(`${intPart}.${fracPart}`);
   return negative ? -num : num;
 }
+
+/**
+ * Render minor units as a locale-neutral decimal string using the currency's
+ * exact fractional precision. This is intended for CSV/JSON-style exports,
+ * where values must not be forced to two decimals (for example JPY or KWD).
+ */
+export function minorToDecimalString(amountMinor: number, currency: CurrencyCode): string {
+  const decimals = currencyDecimals(currency);
+  if (decimals === 0) return String(amountMinor);
+
+  const negative = amountMinor < 0;
+  const abs = Math.abs(amountMinor);
+  const raw = abs.toString().padStart(decimals + 1, '0');
+  const integer = raw.slice(0, -decimals) || '0';
+  const fraction = raw.slice(-decimals);
+  return `${negative ? '-' : ''}${integer}.${fraction}`;
+}
