@@ -7,7 +7,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { ensureFirstLaunch } from '@db/seed';
-import { CelebrationProvider, ToastProvider } from '@components/ui';
+import { Button, CelebrationProvider, ToastProvider } from '@components/ui';
 import { ensureDailyRecoverySnapshot } from '@/backup/recovery';
 import { ThemeSync } from '@shared/settings/ThemeSync';
 import { PwaUpdatePrompt } from './pwa/PwaUpdatePrompt';
@@ -50,13 +50,20 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   if (error) {
     return (
-      <div className="grid min-h-screen place-items-center p-4 text-center">
-        <div className="card max-w-md">
-          <h1 className="text-lg font-semibold text-rose-600">Database error</h1>
-          <p className="mt-2 text-sm text-slate-500">{error}</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Try clearing site data in your browser settings.
+      <div className="grid min-h-screen place-items-center p-4">
+        <div className="card max-w-md text-center">
+          <h1 className="text-lg font-semibold text-rose-600">AfterSum could not open local data</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            Reload the app first. If the problem continues, do not clear site data unless you already
+            have a portable backup—clearing site data permanently removes local AfterSum records.
           </p>
+          <Button className="mt-4" onClick={() => window.location.reload()}>
+            Reload AfterSum
+          </Button>
+          <details className="mt-4 text-left text-xs text-slate-500">
+            <summary className="cursor-pointer font-medium">Technical details</summary>
+            <p className="mt-2 break-words">{error}</p>
+          </details>
         </div>
       </div>
     );
