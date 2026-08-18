@@ -53,6 +53,17 @@ export function shiftMonth(month: string, delta: number): string {
   return toMonthKey(d);
 }
 
+/**
+ * Indexed string range covering one YYYY-MM month.
+ * The upper bound is exclusive, so it remains valid for every month length.
+ */
+export function monthDateRange(month: string): { fromInclusive: string; toExclusive: string } {
+  return {
+    fromInclusive: `${month}-01`,
+    toExclusive: `${shiftMonth(month, 1)}-01`,
+  };
+}
+
 /** Compare two YYYY-MM-DD strings. Returns -1, 0, 1. */
 export function compareDateOnly(a: string, b: string): -1 | 0 | 1 {
   if (a < b) return -1;
