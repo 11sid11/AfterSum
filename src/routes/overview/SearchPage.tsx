@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { getDB } from '@db/database';
 import { Card, EmptyState, Input, Spinner } from '@components/ui';
+import { useGlobalSearchData } from '@overview/queries/useGlobalSearchData';
 import { Search as SearchIcon, Receipt, Users, HandCoins, UserCircle } from 'lucide-react';
 import { formatHumanDate } from '@shared/dates';
 import type { LendEntryType } from '@db/schema';
@@ -30,18 +29,7 @@ function lendEntryLabel(type: LendEntryType): string {
 export function SearchPage() {
   const [q, setQ] = useState('');
   const navigate = useNavigate();
-  const all = useLiveQuery(async () => {
-    const db = getDB();
-    const [track, expenses, groups, people, lendEntries, ledgers] = await Promise.all([
-      db.trackTransactions.toArray(),
-      db.splitExpenses.toArray(),
-      db.splitGroups.toArray(),
-      db.people.toArray(),
-      db.lendEntries.toArray(),
-      db.lendLedgers.toArray(),
-    ]);
-    return { track, expenses, groups, people, lendEntries, ledgers };
-  }, []);
+  const all = useGlobalSearchData();
 
   const results = useMemo<SearchHit[]>(() => {
     if (!all || !q.trim()) return [];
@@ -50,9 +38,14 @@ export function SearchPage() {
     const visibleGroups = new Map(
       all.groups.filter((group) => !group.deletedAt).map((group) => [group.id, group]),
     );
+    const visiblePeople = new Map(
+      all.people.filter((person) => !person.deletedAt).map((person) => [person.id, person]),
+    );
+    const visibleLedgers = new Map(
+      all.ledgers.filter((ledger) => !ledger.deletedAt).map((ledger) => [ledger.id, ledger]),
+    );
 
-    for (const person of all.people) {
-      if (person.deletedAt) continue;
+    for (const person of visiblePeople.values()) {
       const nameMatches = person.name.toLocaleLowerCase().includes(needle);
       const noteMatches = person.note?.toLocaleLowerCase().includes(needle) ?? false;
       if (nameMatches || noteMatches) {
@@ -97,9 +90,9 @@ export function SearchPage() {
 
     for (const entry of all.lendEntries) {
       if (entry.deletedAt) continue;
-      const ledger = all.ledgers.find((item) => item.id === entry.ledgerId && !item.deletedAt);
+      const ledger = visibleLedgers.get(entry.ledgerId);
       if (!ledger) continue;
-      const person = all.people.find((item) => item.id === ledger.personId && !item.deletedAt);
+      const person = visiblePeople.get(ledger.personId);
       if (!person) continue;
       const note = entry.note?.trim() ?? '';
       if (!note.toLocaleLowerCase().includes(needle) && !person.name.toLocaleLowerCase().includes(needle)) continue;
