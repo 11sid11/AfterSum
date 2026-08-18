@@ -11,6 +11,7 @@
  *   - supports soft delete + undo
  */
 
+import type { Table } from 'dexie';
 import { newId } from '@shared/ids';
 import { nowISO } from '@shared/dates';
 import type { BaseEntity } from '@db/schema';
@@ -22,8 +23,7 @@ export type CreateInput<T extends BaseEntity> = Omit<
 
 /** Insert a new row. */
 export async function repoCreate<T extends BaseEntity>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  table: any,
+  table: Table<T, string>,
   input: CreateInput<T>,
 ): Promise<T> {
   const now = nowISO();
@@ -40,8 +40,7 @@ export async function repoCreate<T extends BaseEntity>(
 
 /** Update an existing row by id. Increments `revision`. */
 export async function repoUpdate<T extends BaseEntity>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  table: any,
+  table: Table<T, string>,
   id: string,
   patch: Partial<Omit<T, 'id' | 'createdAt' | 'revision'>>,
 ): Promise<T> {
@@ -55,28 +54,31 @@ export async function repoUpdate<T extends BaseEntity>(
     ...patch,
     id,
     updatedAt: now,
-    revision: (existing.revision ?? 0) + 1,
+    revision: existing.revision + 1,
   };
   await table.put(next);
   return next;
 }
 
 /** Soft-delete a row. Sets `deletedAt`, leaves the record. */
-export async function repoSoftDelete(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  table: any,
+export async function repoSoftDelete<T extends BaseEntity>(
+  table: Table<T, string>,
   id: string,
 ): Promise<void> {
   const now = nowISO();
   const existing = await table.get(id);
   if (!existing) return;
-  await table.put({ ...existing, deletedAt: now, updatedAt: now, revision: (existing.revision ?? 0) + 1 });
+  await table.put({
+    ...existing,
+    deletedAt: now,
+    updatedAt: now,
+    revision: existing.revision + 1,
+  });
 }
 
 /** Restore a soft-deleted row (used by Undo). */
-export async function repoRestore(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  table: any,
+export async function repoRestore<T extends BaseEntity>(
+  table: Table<T, string>,
   id: string,
 ): Promise<void> {
   const now = nowISO();
@@ -84,13 +86,17 @@ export async function repoRestore(
   if (!existing) return;
   const { deletedAt: _deletedAt, ...rest } = existing;
   void _deletedAt;
-  await table.put({ ...rest, updatedAt: now, revision: (existing.revision ?? 0) + 1 });
+  const restored = {
+    ...rest,
+    updatedAt: now,
+    revision: existing.revision + 1,
+  } as T;
+  await table.put(restored);
 }
 
 /** Hard-delete (used by wipe / restore from backup). */
-export async function repoHardDelete(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  table: any,
+export async function repoHardDelete<T extends BaseEntity>(
+  table: Table<T, string>,
   id: string,
 ): Promise<void> {
   await table.delete(id);
