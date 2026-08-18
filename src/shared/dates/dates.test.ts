@@ -4,6 +4,7 @@ import {
   toMonthKey,
   fromMonthKey,
   shiftMonth,
+  monthDateRange,
   isInMonth,
   todayDateOnly,
 } from './index';
@@ -21,6 +22,17 @@ describe('dates', () => {
   it('shiftMonth handles year boundary', () => {
     expect(shiftMonth('2026-12', 1)).toBe('2027-01');
     expect(shiftMonth('2026-01', -1)).toBe('2025-12');
+  });
+
+  it('monthDateRange uses an exclusive next-month boundary', () => {
+    expect(monthDateRange('2026-02')).toEqual({
+      fromInclusive: '2026-02-01',
+      toExclusive: '2026-03-01',
+    });
+    expect(monthDateRange('2026-12')).toEqual({
+      fromInclusive: '2026-12-01',
+      toExclusive: '2027-01-01',
+    });
   });
 
   it('isInMonth matches YYYY-MM', () => {

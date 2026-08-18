@@ -8,7 +8,7 @@
 
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDB } from '@db/database';
-import { todayDateOnly } from '@shared/dates';
+import { monthDateRange, todayDateOnly } from '@shared/dates';
 import { useAppSettings } from '@shared/settings/useSettings';
 import {
   budgetProgress as budgetProgressCalc,
@@ -27,6 +27,8 @@ import type {
   TrackTransactionFilters,
   TrackTransactionWithCategory,
 } from '../domain/types';
+
+const EMPTY_FILTERS: TrackTransactionFilters = {};
 
 /** All active categories, optionally filtered by type. */
 export function useTrackCategories(
@@ -61,13 +63,17 @@ export function useTrackCategoryMap(): Map<string, TrackCategory> | undefined {
 /** Active transactions for a month, decorated with their category. */
 export function useTrackTransactionsForMonth(
   month: string,
-  filters: TrackTransactionFilters = {},
+  filters: TrackTransactionFilters = EMPTY_FILTERS,
 ): TrackTransactionWithCategory[] | undefined {
   const categoriesById = useTrackCategoryMap();
   return useLiveQuery(
     async () => {
-      const all = await getDB().trackTransactions.toArray();
-      const filtered = filterTransactions(all, { ...filters, month });
+      const { fromInclusive, toExclusive } = monthDateRange(month);
+      const monthRows = await getDB()
+        .trackTransactions.where('date')
+        .between(fromInclusive, toExclusive, true, false)
+        .toArray();
+      const filtered = filterTransactions(monthRows, { ...filters, month });
       if (!categoriesById) return filtered.map((t) => ({ ...t }));
       return decorateWithCategory(filtered, categoriesById);
     },
@@ -77,7 +83,7 @@ export function useTrackTransactionsForMonth(
 
 /** All active transactions across months (filtered), decorated. */
 export function useTrackTransactions(
-  filters: TrackTransactionFilters = {},
+  filters: TrackTransactionFilters = EMPTY_FILTERS,
 ): TrackTransactionWithCategory[] | undefined {
   const categoriesById = useTrackCategoryMap();
   return useLiveQuery(
@@ -109,10 +115,12 @@ export function useTrackTransaction(id: string | undefined): TrackTransactionWit
 /** The budget for a given month, or undefined. */
 export function useTrackBudget(month: string): TrackBudget | undefined {
   return useLiveQuery(
-    async () => {
-      const all = await getDB().trackBudgets.toArray();
-      return all.find((b) => !b.deletedAt && b.month === month);
-    },
+    async () =>
+      getDB()
+        .trackBudgets.where('month')
+        .equals(month)
+        .filter((budget) => !budget.deletedAt)
+        .first(),
     [month],
   );
 }
@@ -128,23 +136,30 @@ export function useTrackMonthlySummary(month: string): MonthlySummary | undefine
   return useLiveQuery(
     async () => {
       const db = getDB();
-      const [allTx, allBudgets, allCategories] = await Promise.all([
-        db.trackTransactions.toArray(),
-        db.trackBudgets.toArray(),
+      const { fromInclusive, toExclusive } = monthDateRange(month);
+      const [monthTx, budgetRow, allCategories] = await Promise.all([
+        db.trackTransactions.where('date').between(fromInclusive, toExclusive, true, false).toArray(),
+        db.trackBudgets.where('month').equals(month).filter((budget) => !budget.deletedAt).first(),
         db.trackCategories.toArray(),
       ]);
       const currency = settings?.defaultCurrency ?? 'INR';
-      const spent = monthlyTotalCalc(allTx, month, 'expense');
-      const income = monthlyTotalCalc(allTx, month, 'income');
-      const byCategory = categoryTotalsCalc(allTx, month, 'expense').map<CategoryTotal>((c) => ({
+      const spent = monthlyTotalCalc(monthTx, month, 'expense');
+      const income = monthlyTotalCalc(monthTx, month, 'income');
+      const categoryNames = new Map(
+        allCategories.filter((category) => !category.deletedAt).map((category) => [category.id, category.name]),
+      );
+      const byCategory = categoryTotalsCalc(monthTx, month, 'expense').map<CategoryTotal>((c) => ({
         ...c,
         categoryName: c.categoryId
-          ? allCategories.find((x) => x.id === c.categoryId)?.name ?? 'Uncategorised'
+          ? categoryNames.get(c.categoryId) ?? 'Uncategorised'
           : 'Uncategorised',
       }));
-      const byPaymentMethod = paymentMethodTotalsCalc(allTx, month, 'expense');
-      const budgetRow = allBudgets.find((b) => !b.deletedAt && b.month === month);
-      const prog = budgetProgressCalc(allTx, month, budgetRow ? { amountMinor: budgetRow.amountMinor } : undefined);
+      const byPaymentMethod = paymentMethodTotalsCalc(monthTx, month, 'expense');
+      const prog = budgetProgressCalc(
+        monthTx,
+        month,
+        budgetRow ? { amountMinor: budgetRow.amountMinor } : undefined,
+      );
       const summary: MonthlySummary = {
         month,
         currency,
@@ -182,6 +197,8 @@ export function useRecentTrackTransactions(limit = 5): TrackTransactionWithCateg
   const categoriesById = useTrackCategoryMap();
   return useLiveQuery(
     async () => {
+      // Keep the established date + createdAt tie-breaker. The date index alone
+      // cannot preserve that ordering for multiple transactions on the same day.
       const all = await getDB().trackTransactions.toArray();
       const recent = recentTransactionsCalc(all, limit);
       if (!categoriesById) return recent.map((t) => ({ ...t }));
@@ -195,10 +212,11 @@ export function useRecentTrackTransactions(limit = 5): TrackTransactionWithCateg
 export function useTrackRecurringDue(): TrackRecurringRule[] | undefined {
   return useLiveQuery(async () => {
     const today = todayDateOnly();
-    const all = await getDB().trackRecurringRules.toArray();
-    return all
-      .filter((r) => !r.deletedAt && r.enabled && r.nextDate <= today)
-      .sort((a, b) => (a.nextDate < b.nextDate ? -1 : a.nextDate > b.nextDate ? 1 : 0));
+    return getDB()
+      .trackRecurringRules.where('nextDate')
+      .belowOrEqual(today)
+      .filter((rule) => !rule.deletedAt && rule.enabled)
+      .sortBy('nextDate');
   }, []);
 }
 

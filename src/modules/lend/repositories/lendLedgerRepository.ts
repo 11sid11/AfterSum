@@ -94,56 +94,48 @@ export const lendLedgerRepository = {
     return this.update(id, { archived: true });
   },
 
-  /**
-   * Soft-delete a ledger AND its currently-active entries
-   * so the dashboard hides them. We perform the writes
-   * serially rather than inside a multi-table transaction:
-   * a partial state (ledger hidden, entries not yet
-   * hidden) is still rendered correctly because the
-   * dashboard filters by ledgerId. Serial writes also
-   * avoid flaky Dexie transactions in the test
-   * fake-indexeddb environment.
-   */
+  /** Soft-delete a ledger and all currently-active entries atomically. */
   async softDelete(id: string): Promise<{ ledgerId: string; entryIds: string[] }> {
     const db = getDB();
-    const ledger = await db.lendLedgers.get(id);
-    if (!ledger) return { ledgerId: id, entryIds: [] };
-    const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
-    const activeEntries = entries.filter((e) => !e.deletedAt);
-    await repoSoftDelete(db.lendLedgers, id);
-    for (const e of activeEntries) {
-      await repoSoftDelete(db.lendEntries, e.id);
-    }
-    return { ledgerId: id, entryIds: activeEntries.map((e) => e.id) };
+    return db.transaction('rw', [db.lendLedgers, db.lendEntries], async () => {
+      const ledger = await db.lendLedgers.get(id);
+      if (!ledger) return { ledgerId: id, entryIds: [] };
+      const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
+      const activeEntries = entries.filter((entry) => !entry.deletedAt);
+
+      await repoSoftDelete(db.lendLedgers, id);
+      for (const entry of activeEntries) {
+        await repoSoftDelete(db.lendEntries, entry.id);
+      }
+      return { ledgerId: id, entryIds: activeEntries.map((entry) => entry.id) };
+    });
   },
 
-  /**
-   * Restore a soft-deleted ledger. Companion entries that
-   * were soft-deleted at the same time are also restored.
-   */
+  /** Restore a soft-deleted ledger and its soft-deleted entries atomically. */
   async restore(id: string): Promise<{ ledgerId: string; entryIds: string[] }> {
     const db = getDB();
-    const ledger = await db.lendLedgers.get(id);
-    if (!ledger) return { ledgerId: id, entryIds: [] };
-    const entries = (await db.lendEntries.where('ledgerId').equals(id).toArray())
-      .filter((e) => !!e.deletedAt);
-    await repoRestore(db.lendLedgers, id);
-    for (const e of entries) {
-      await repoRestore(db.lendEntries, e.id);
-    }
-    return { ledgerId: id, entryIds: entries.map((e) => e.id) };
+    return db.transaction('rw', [db.lendLedgers, db.lendEntries], async () => {
+      const ledger = await db.lendLedgers.get(id);
+      if (!ledger) return { ledgerId: id, entryIds: [] };
+      const entries = (await db.lendEntries.where('ledgerId').equals(id).toArray()).filter(
+        (entry) => !!entry.deletedAt,
+      );
+
+      await repoRestore(db.lendLedgers, id);
+      for (const entry of entries) {
+        await repoRestore(db.lendEntries, entry.id);
+      }
+      return { ledgerId: id, entryIds: entries.map((entry) => entry.id) };
+    });
   },
 
-  /**
-   * Hard-delete a ledger and ALL of its entries. Used by
-   * JSON restore and wipe. Caller is responsible for
-   * confirming this is intended.
-   */
+  /** Hard-delete a ledger and all of its entries atomically. */
   async _hardDeleteCascade(id: string): Promise<void> {
     const db = getDB();
-    const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
-    for (const e of entries) await db.lendEntries.delete(e.id);
-    await db.lendLedgers.delete(id);
+    await db.transaction('rw', [db.lendLedgers, db.lendEntries], async () => {
+      await db.lendEntries.where('ledgerId').equals(id).delete();
+      await db.lendLedgers.delete(id);
+    });
   },
 
   /** Bulk-replace (used by JSON restore). */

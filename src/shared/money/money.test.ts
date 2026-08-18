@@ -6,6 +6,7 @@ import {
   decimalToMinor,
   formatMoney,
   minorToDecimal,
+  minorToDecimalString,
   parseMoney,
   sumMinor,
   assertSumsTo,
@@ -38,6 +39,15 @@ describe('decimalToMinor / minorToDecimal', () => {
   it('throws on invalid input', () => {
     expect(() => decimalToMinor('abc', 'INR')).toThrow();
     expect(() => decimalToMinor('1.2.3', 'INR')).toThrow();
+  });
+});
+
+describe('minorToDecimalString', () => {
+  it('uses the exact currency precision for export-safe values', () => {
+    expect(minorToDecimalString(125050, 'INR')).toBe('1250.50');
+    expect(minorToDecimalString(123, 'JPY')).toBe('123');
+    expect(minorToDecimalString(1234, 'KWD')).toBe('1.234');
+    expect(minorToDecimalString(-5, 'KWD')).toBe('-0.005');
   });
 });
 
