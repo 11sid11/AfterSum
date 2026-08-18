@@ -35,35 +35,34 @@ function clean(input: Partial<TrackTransactionInput>): Partial<TrackTransactionI
   return cleanTransactionInput(merged as TrackTransactionInput);
 }
 
+function newestDateFirst(a: TrackTransaction, b: TrackTransaction): number {
+  return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+}
+
 export const trackTransactionRepository = {
   /** All active (non-deleted) transactions, newest date first. */
   async list(): Promise<TrackTransaction[]> {
-    return getDB()
-      .trackTransactions.orderBy('date')
-      .reverse()
-      .filter((transaction) => !transaction.deletedAt)
-      .toArray();
+    const all = await getDB().trackTransactions.toArray();
+    return all.filter((transaction) => !transaction.deletedAt).sort(newestDateFirst);
   },
 
   /** Active transactions within a single month (YYYY-MM). */
   async listByMonth(month: string): Promise<TrackTransaction[]> {
     const { fromInclusive, toExclusive } = monthDateRange(month);
-    return getDB()
+    const rows = await getDB()
       .trackTransactions.where('date')
       .between(fromInclusive, toExclusive, true, false)
-      .reverse()
-      .filter((transaction) => !transaction.deletedAt)
       .toArray();
+    return rows.filter((transaction) => !transaction.deletedAt).sort(newestDateFirst);
   },
 
   /** Active transactions within an inclusive [fromDate, toDate] range. */
   async listByDateRange(fromDate: string, toDate: string): Promise<TrackTransaction[]> {
-    return getDB()
+    const rows = await getDB()
       .trackTransactions.where('date')
       .between(fromDate, toDate, true, true)
-      .reverse()
-      .filter((transaction) => !transaction.deletedAt)
       .toArray();
+    return rows.filter((transaction) => !transaction.deletedAt).sort(newestDateFirst);
   },
 
   async get(id: string): Promise<TrackTransaction | undefined> {
