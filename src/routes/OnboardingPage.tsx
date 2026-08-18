@@ -1,6 +1,4 @@
-/**
- * Short first-run onboarding. No account or bank connection is required.
- */
+/** Short first-run onboarding. No account or bank connection is required. */
 
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -18,25 +16,37 @@ export function OnboardingPage() {
   const [name, setName] = useState('Me');
   const [persist, setPersist] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
   const finishStarted = useRef(false);
 
-  const next = () => setStep((s) => (s + 1) as Step);
-  const back = () => setStep((s) => (s - 1) as Step);
+  const next = () => {
+    setError(undefined);
+    setStep((s) => (s + 1) as Step);
+  };
+  const back = () => {
+    setError(undefined);
+    setStep((s) => (s - 1) as Step);
+  };
 
   const finish = async () => {
     if (finishStarted.current) return;
 
     finishStarted.current = true;
     setBusy(true);
+    setError(undefined);
     try {
       await settingsRepository.update({ defaultCurrency: currency });
       await personRepository.update('self', { name: name.trim() });
       if (persist) await persistBrowserStorage();
       await settingsRepository.setOnboardingComplete(true);
       await navigate({ to: '/overview', replace: true });
-    } catch (error) {
+    } catch (finishError) {
       finishStarted.current = false;
-      throw error;
+      setError(
+        finishError instanceof Error
+          ? finishError.message
+          : 'Could not finish setup. Your choices are still here; try again.',
+      );
     } finally {
       setBusy(false);
     }
@@ -106,9 +116,14 @@ export function OnboardingPage() {
             </div>
             <Toggle checked={persist} onChange={setPersist} id="persist-toggle" />
           </div>
+          {error && (
+            <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+              {error}
+            </p>
+          )}
           <div className="mt-6 flex justify-between">
-            <Button variant="ghost" onClick={back}>Back</Button>
-            <Button onClick={finish} disabled={busy}>{busy ? 'Setting up…' : 'Finish'}</Button>
+            <Button variant="ghost" onClick={back} disabled={busy}>Back</Button>
+            <Button onClick={() => void finish()} disabled={busy}>{busy ? 'Setting up…' : 'Finish'}</Button>
           </div>
         </Card>
       )}
