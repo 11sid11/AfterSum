@@ -14,7 +14,6 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDB } from '@db/database';
-import { findSelf } from '@shared/people/domain';
 import type {
   SplitGroup,
   SplitGroupMember,
@@ -27,6 +26,12 @@ import { computeGroupBalances } from '../domain/balances';
 import { simplifyDebts, type Transfer } from '../domain/simplify';
 import { buildGroupSummary, type GroupSummary } from '../domain/aggregations';
 import { useSelf } from '@shared/people/queries';
+
+function pushGrouped<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const rows = map.get(key) ?? [];
+  rows.push(value);
+  map.set(key, rows);
+}
 
 // ---------------------------------------------------------------------------
 // Single-table hooks
@@ -206,61 +211,71 @@ export interface SplitDashboardItem {
   expenseCount: number;
 }
 
-/**
- * Per-group summary for the Split dashboard. For each
- * active group, computes the current user's net position.
- *
- * Lazy implementation: uses the same balance engine as
- * `useSplitGroupSummary` but batches across every group so
- * a single `useLiveQuery` can re-render the dashboard
- * whenever any input row changes.
- */
+/** Per-group summary for the Split dashboard, batched in one live query. */
 export function useSplitDashboard(): SplitDashboardItem[] | undefined {
   const self = useSelf();
   return useLiveQuery(async () => {
     if (!self) return undefined;
     const db = getDB();
-
-    // Resolve the self id outside the loop.
-    const people = await db.people.toArray();
-    const selfRow = findSelf(people);
-    if (!selfRow) return [];
-
     const groups = (await db.splitGroups.toArray()).filter(
-      (g) => !g.deletedAt && !g.archived,
+      (group) => !group.deletedAt && !group.archived,
     );
-
     if (groups.length === 0) return [];
 
-    const members = await db.splitGroupMembers.toArray();
-    const expenses = await db.splitExpenses.toArray();
-    const payers = await db.splitPayers.toArray();
-    const shares = await db.splitShares.toArray();
-    const settlements = await db.splitSettlements.toArray();
+    const [members, expenses, payers, shares, settlements] = await Promise.all([
+      db.splitGroupMembers.toArray(),
+      db.splitExpenses.toArray(),
+      db.splitPayers.toArray(),
+      db.splitShares.toArray(),
+      db.splitSettlements.toArray(),
+    ]);
 
-    const out: SplitDashboardItem[] = [];
-    for (const g of groups) {
-      const groupMembers = members.filter((m) => m.groupId === g.id && !m.deletedAt);
-      const groupExpenses = expenses.filter((e) => e.groupId === g.id && !e.deletedAt);
-      const expenseIds = new Set(groupExpenses.map((e) => e.id));
-      const groupPayers = payers.filter((p) => expenseIds.has(p.expenseId));
-      const groupShares = shares.filter((s) => expenseIds.has(s.expenseId));
-      const groupSettlements = settlements.filter((s) => s.groupId === g.id && !s.deletedAt);
+    const membersByGroup = new Map<string, SplitGroupMember[]>();
+    const expensesByGroup = new Map<string, SplitExpense[]>();
+    const payersByGroup = new Map<string, SplitPayer[]>();
+    const sharesByGroup = new Map<string, SplitShare[]>();
+    const settlementsByGroup = new Map<string, SplitSettlement[]>();
+    const groupIdByExpense = new Map<string, string>();
 
-      const balances = computeGroupBalances({
-        group: g,
-        members: groupMembers,
-        expenses: groupExpenses,
-        payers: groupPayers,
-        shares: groupShares,
-        settlements: groupSettlements,
-      });
-      out.push({
-        group: g,
-        yourNet: balances.get(selfRow.id) ?? 0,
-        expenseCount: groupExpenses.length,
-      });
+    for (const member of members) {
+      if (!member.deletedAt) pushGrouped(membersByGroup, member.groupId, member);
     }
+    for (const expense of expenses) {
+      if (expense.deletedAt) continue;
+      pushGrouped(expensesByGroup, expense.groupId, expense);
+      groupIdByExpense.set(expense.id, expense.groupId);
+    }
+    for (const payer of payers) {
+      if (payer.deletedAt) continue;
+      const groupId = groupIdByExpense.get(payer.expenseId);
+      if (groupId) pushGrouped(payersByGroup, groupId, payer);
+    }
+    for (const share of shares) {
+      if (share.deletedAt) continue;
+      const groupId = groupIdByExpense.get(share.expenseId);
+      if (groupId) pushGrouped(sharesByGroup, groupId, share);
+    }
+    for (const settlement of settlements) {
+      if (!settlement.deletedAt) pushGrouped(settlementsByGroup, settlement.groupId, settlement);
+    }
+
+    const out = groups.map((group) => {
+      const groupExpenses = expensesByGroup.get(group.id) ?? [];
+      const balances = computeGroupBalances({
+        group,
+        members: membersByGroup.get(group.id) ?? [],
+        expenses: groupExpenses,
+        payers: payersByGroup.get(group.id) ?? [],
+        shares: sharesByGroup.get(group.id) ?? [],
+        settlements: settlementsByGroup.get(group.id) ?? [],
+      });
+      return {
+        group,
+        yourNet: balances.get(self.id) ?? 0,
+        expenseCount: groupExpenses.length,
+      };
+    });
+
     out.sort((a, b) => Math.abs(b.yourNet) - Math.abs(a.yourNet));
     return out;
   }, [self]);
