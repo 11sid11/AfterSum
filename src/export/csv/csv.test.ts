@@ -27,7 +27,7 @@ describe('CSV serializer', () => {
     expect(csv).toMatch(/"line\r?\nbreak, comma"/);
   });
 
-  it('uses decimal + minor + currency in track transactions', () => {
+  it('uses each Track transaction currency and its exact decimal precision', () => {
     const csv = csvOfTrackTransactions(
       [
         {
@@ -42,12 +42,32 @@ describe('CSV serializer', () => {
           updatedAt: '2026-08-13T00:00:00.000Z',
           revision: 1,
         },
+        {
+          id: 't2',
+          type: 'expense',
+          title: 'Train',
+          amountMinor: 1500,
+          currency: 'JPY',
+          date: '2026-08-14',
+          createdAt: '2026-08-14T00:00:00.000Z',
+          updatedAt: '2026-08-14T00:00:00.000Z',
+          revision: 1,
+        },
+        {
+          id: 't3',
+          type: 'expense',
+          title: 'Coffee',
+          amountMinor: 1234,
+          currency: 'KWD',
+          date: '2026-08-15',
+          createdAt: '2026-08-15T00:00:00.000Z',
+          updatedAt: '2026-08-15T00:00:00.000Z',
+          revision: 1,
+        },
       ],
       [{ id: 'c1', name: 'Food', type: 'expense', archived: false, createdAt: '', updatedAt: '', revision: 1 }],
-      'INR',
     );
     const lines = csv.split(/\r?\n/);
-    // header + 1 row + trailing empty
     expect(lines[0]).toContain('amount');
     expect(lines[0]).toContain('amount_minor');
     expect(lines[0]).toContain('currency');
@@ -55,6 +75,8 @@ describe('CSV serializer', () => {
     expect(lines[1]).toContain('125050');
     expect(lines[1]).toContain('INR');
     expect(lines[1]).toContain('Food');
+    expect(lines[2]).toContain('1500,1500,JPY');
+    expect(lines[3]).toContain('1.234,1234,KWD');
   });
 
   it('uses ISO date and decimal amount for split expenses', () => {
