@@ -23,7 +23,8 @@ import {
 import { createPortableBackupFile, shareOrDownloadBackup } from '@/backup/portable';
 import { buildFullZip } from '@/export/zip/builder';
 import { csvOfTrackTransactions } from '@/export/csv/serializer';
-import { getDB } from '@db/database';
+import { trackCategoryRepository } from '@modules/track/repositories/trackCategoryRepository';
+import { trackTransactionRepository } from '@modules/track/repositories/trackTransactionRepository';
 import type { RecoverySnapshot } from '@db/schema';
 import { formatHumanDateTime, nowISO, toMonthKey } from '@shared/dates';
 import { fileFromBlob, shareOrDownloadFile } from '@shared/files/shareFile';
@@ -166,32 +167,24 @@ export function BackupCenter() {
     setBusy('month');
     try {
       const month = toMonthKey();
-      const db = getDB();
       const [transactions, categories] = await Promise.all([
-        db.trackTransactions.toArray(),
-        db.trackCategories.toArray(),
+        trackTransactionRepository.listByMonth(month),
+        trackCategoryRepository.listAll(),
       ]);
-      const filtered = transactions.filter(
-        (transaction) => !transaction.deletedAt && transaction.date.startsWith(month),
-      );
-      const csv = csvOfTrackTransactions(
-        filtered,
-        categories,
-        settings?.defaultCurrency ?? 'INR',
-      );
+      const csv = csvOfTrackTransactions(transactions, categories);
       const file = new File([csv], `track-${month}.csv`, {
         type: 'text/csv;charset=utf-8',
       });
       const result = await shareOrDownloadFile(file, {
         title: `AfterSum Track export — ${month}`,
-        text: `${filtered.length} Track transactions from ${month}`,
+        text: `${transactions.length} Track transactions from ${month}`,
       });
       if (result === 'cancelled') return;
 
       toast.show(
         result === 'shared'
-          ? `Shared ${filtered.length} transactions for ${month}.`
-          : `Exported ${filtered.length} transactions for ${month}.`,
+          ? `Shared ${transactions.length} transactions for ${month}.`
+          : `Exported ${transactions.length} transactions for ${month}.`,
       );
     } catch (error) {
       toast.show('Export failed: ' + errorMessage(error), { variant: 'error' });
@@ -214,7 +207,7 @@ export function BackupCenter() {
       <header>
         <h1 className="text-lg font-semibold">Data &amp; Storage</h1>
         <p className="mt-0.5 text-xs text-slate-500">
-          No AfterSum account or backend. Data stays on this device unless you explicitly save a backup or export.
+          AfterSum keeps your data on this device unless you explicitly save a backup or export a file.
         </p>
       </header>
 
@@ -278,7 +271,7 @@ export function BackupCenter() {
         )}
 
         <p className="mt-3 text-xs text-slate-500">
-          Browser usage and quota are reported for this web origin, so they include AfterSum's database and offline cache and may include other data stored on the same host. “AfterSum backup data” is the approximate serialized size of your app records, not IndexedDB's exact on-disk size.
+          Browser usage and quota cover this web origin, including AfterSum's database and offline cache. “AfterSum backup data” is the approximate size of your app records, not exact IndexedDB disk usage.
         </p>
 
         {storageInfo?.persistenceSupported && !storageInfo.persisted && (
@@ -296,7 +289,7 @@ export function BackupCenter() {
 
         {storageInfo && !storageInfo.persistenceSupported && (
           <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-            This browser does not expose the persistent-storage API. AfterSum will still use local IndexedDB, but the browser controls eviction.
+            This browser does not expose persistent storage. AfterSum still uses local IndexedDB, but the browser controls eviction.
           </p>
         )}
       </Card>
@@ -307,7 +300,7 @@ export function BackupCenter() {
           <div>
             <h2 className="text-sm font-semibold">Portable backup</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Save one complete AfterSum file somewhere outside this device. On supported devices, the system share sheet lets you choose Drive, Files, WhatsApp, Dropbox, or another installed destination without connecting an account to AfterSum.
+              Save one complete, restorable AfterSum file somewhere outside this device. On supported devices, the system share sheet lets you choose where it goes without connecting an account to AfterSum.
             </p>
           </div>
         </div>
@@ -320,7 +313,7 @@ export function BackupCenter() {
           {busy === 'portable' ? <Spinner /> : <Share2 size={16} />} Save portable backup
         </Button>
         <p className="mt-2 text-xs text-slate-500">
-          This portable format is readable JSON. Keep the file somewhere private.
+          This backup is readable JSON and contains your financial records. Keep it private.
         </p>
       </Card>
 
@@ -330,7 +323,7 @@ export function BackupCenter() {
           <div>
             <h2 className="text-sm font-semibold">Automatic recovery</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Keeps one rolling daily checkpoint, replacing the previous automatic copy, plus up to three pre-restore safety checkpoints. These help with mistakes but cannot recover a lost or reset device.
+              Keeps one rolling daily checkpoint plus up to three pre-restore safety checkpoints. These help undo local mistakes but cannot recover a lost or reset device.
             </p>
           </div>
         </div>
@@ -364,7 +357,7 @@ export function BackupCenter() {
       <Card>
         <h2 className="section-title mb-2">Restore portable backup</h2>
         <p className="text-xs text-slate-500">
-          Choose an AfterSum backup file. Restore is explicit and creates a local safety checkpoint first.
+          Choose an AfterSum backup file. Restore replaces current financial records and creates a local safety checkpoint first.
         </p>
         <label className="mt-3 block">
           <input
@@ -386,7 +379,7 @@ export function BackupCenter() {
       <Card>
         <h2 className="section-title mb-2">Exports</h2>
         <p className="mb-3 text-xs text-slate-500">
-          CSV is for spreadsheets and analysis. On supported devices, exports open the system share sheet so you can choose where the file goes; browsers without file sharing fall back to a download. Use a portable backup when you want to restore AfterSum later.
+          CSV files are for spreadsheets and analysis and cannot restore AfterSum. Use a portable backup when you want a restorable copy.
         </p>
         <div className="space-y-2">
           <Button block variant="secondary" onClick={() => void exportZip()} disabled={!!busy}>
