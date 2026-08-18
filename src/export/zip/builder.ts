@@ -15,10 +15,23 @@
 
 import { zip, strToU8 } from 'fflate';
 import { APP_VERSION, SCHEMA_VERSION } from '@app/constants';
-import { toMonthKey } from '@shared/dates';
 import { getDB } from '@db/database';
-import { nowISO } from '@shared/dates';
-import { minorToDecimal } from '@shared/money';
+import type {
+  LendEntry,
+  LendLedger,
+  Person,
+  SplitExpense,
+  SplitGroup,
+  SplitGroupMember,
+  SplitPayer,
+  SplitSettlement,
+  SplitShare,
+  TrackTransaction,
+} from '@db/schema';
+import { entryToSignedAmount } from '@modules/lend/domain/signs';
+import { computeMemberBalances } from '@modules/split/domain/balances';
+import { nowISO, toMonthKey } from '@shared/dates';
+import { minorToDecimalString } from '@shared/money';
 import {
   csvOfPeople,
   csvOfTrackTransactions,
@@ -33,14 +46,14 @@ import {
   csvOfSplitSettlements,
   csvOfLendLedgers,
   csvOfLendEntries,
+  csvRow,
 } from '../csv/serializer';
 
-export const README_TEXT = `Finance Utility — Data Export
-================================
+export const README_TEXT = `AfterSum — Data Export
+======================
 
-This archive contains the full local database produced by
-the Finance Utility app. The format is human-readable CSV
-plus a manifest.
+This archive contains a snapshot of the local AfterSum database.
+The format is human-readable CSV plus a manifest.
 
 Module independence
 -------------------
@@ -53,9 +66,9 @@ transactions. They are informational only.
 
 Restoring
 ---------
-This CSV package is a snapshot for inspection and audit.
-For a full restore of the local database, use the JSON
-backup file from Settings → Data & Backup → Export JSON.
+This CSV package is for inspection and audit, not restore.
+For a full restore, use the portable AfterSum backup from
+Settings → Data & Storage → Portable backup.
 
 Schema
 ------
@@ -93,6 +106,7 @@ export interface FullZipOptions {
 export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
   const db = getDB();
   const [
+    settings,
     people,
     trackTx,
     trackCats,
@@ -106,22 +120,44 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
     splitSettlements,
     lendLedgers,
     lendEntries,
-  ] = await Promise.all([
-    db.people.toArray(),
-    db.trackTransactions.toArray(),
-    db.trackCategories.toArray(),
-    db.trackBudgets.toArray(),
-    db.trackRecurringRules.toArray(),
-    db.splitGroups.toArray(),
-    db.splitGroupMembers.toArray(),
-    db.splitExpenses.toArray(),
-    db.splitPayers.toArray(),
-    db.splitShares.toArray(),
-    db.splitSettlements.toArray(),
-    db.lendLedgers.toArray(),
-    db.lendEntries.toArray(),
-  ]);
+  ] = await db.transaction(
+    'r',
+    [
+      db.settings,
+      db.people,
+      db.trackTransactions,
+      db.trackCategories,
+      db.trackBudgets,
+      db.trackRecurringRules,
+      db.splitGroups,
+      db.splitGroupMembers,
+      db.splitExpenses,
+      db.splitPayers,
+      db.splitShares,
+      db.splitSettlements,
+      db.lendLedgers,
+      db.lendEntries,
+    ],
+    async () =>
+      Promise.all([
+        db.settings.get('app'),
+        db.people.toArray(),
+        db.trackTransactions.toArray(),
+        db.trackCategories.toArray(),
+        db.trackBudgets.toArray(),
+        db.trackRecurringRules.toArray(),
+        db.splitGroups.toArray(),
+        db.splitGroupMembers.toArray(),
+        db.splitExpenses.toArray(),
+        db.splitPayers.toArray(),
+        db.splitShares.toArray(),
+        db.splitSettlements.toArray(),
+        db.lendLedgers.toArray(),
+        db.lendEntries.toArray(),
+      ]),
+  );
 
+  const defaultCurrency = settings?.defaultCurrency ?? 'INR';
   const inputs: Record<string, Uint8Array> = {
     'README.txt': strToU8(README_TEXT),
     'manifest.json': strToU8(
@@ -152,7 +188,7 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
       ),
     ),
     'shared/people.csv': strToU8(csvOfPeople(people)),
-    'track/transactions.csv': strToU8(csvOfTrackTransactions(trackTx, trackCats, 'INR')),
+    'track/transactions.csv': strToU8(csvOfTrackTransactions(trackTx, trackCats)),
     'track/categories.csv': strToU8(csvOfTrackCategories(trackCats)),
     'track/budgets.csv': strToU8(csvOfTrackBudgets(trackBudgets)),
     'track/recurring.csv': strToU8(csvOfTrackRecurring(trackRecurring)),
@@ -167,12 +203,22 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
   };
 
   if (opts.includeOverview !== false) {
-    // people-summary: per-person breakdown across lend + split
-    const peopleSummary = buildPeopleSummary(people, lendLedgers, lendEntries, splitGroups, splitMembers, splitPayers, splitShares, splitSettlements);
-    // monthly-summary: per-month spent
-    const monthly = buildMonthlySummary(trackTx);
-    inputs['overview/people-summary.csv'] = strToU8(peopleSummary);
-    inputs['overview/monthly-summary.csv'] = strToU8(monthly);
+    inputs['overview/people-summary.csv'] = strToU8(
+      buildPeopleSummary({
+        people,
+        ledgers: lendLedgers,
+        lendEntries,
+        groups: splitGroups,
+        members: splitMembers,
+        expenses: splitExpenses,
+        payers: splitPayers,
+        shares: splitShares,
+        settlements: splitSettlements,
+      }),
+    );
+    inputs['overview/monthly-summary.csv'] = strToU8(
+      buildMonthlySummary(trackTx, defaultCurrency),
+    );
   }
 
   const out = await new Promise<Uint8Array>((resolve, reject) => {
@@ -184,80 +230,166 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
   return new Blob([out], { type: 'application/zip' });
 }
 
-function buildPeopleSummary(
-  people: Array<{ id: string; name: string }>,
-  ledgers: Array<{ id: string; personId: string; currency: string }>,
-  lendEntries: Array<{ ledgerId: string; type: string; amountMinor: number }>,
-  groups: Array<{ id: string; name: string; currency: string }>,
-  members: Array<{ groupId: string; personId: string }>,
-  payers: Array<{ expenseId: string; personId: string; amountMinor: number }>,
-  shares: Array<{ expenseId: string; personId: string; amountMinor: number }>,
-  settlements: Array<{ groupId: string; fromPersonId: string; toPersonId: string; amountMinor: number }>,
-): string {
-  const lines: string[] = [];
-  lines.push(['person_id', 'person_name', 'lend_balance', 'currency_lend', 'split_balance', 'currency_split'].join(','));
-  for (const p of people) {
-    const personLedgers = ledgers.filter((l) => l.personId === p.id);
-    const lendByCurrency: Record<string, number> = {};
-    for (const l of personLedgers) {
-      const e = lendEntries.filter((x) => x.ledgerId === l.id);
-      let s = 0;
-      for (const x of e) {
-        if (x.type === 'lent' || x.type === 'repayment_given' || x.type === 'adjustment') s += x.amountMinor;
-        else s -= x.amountMinor;
-      }
-      lendByCurrency[l.currency] = (lendByCurrency[l.currency] ?? 0) + s;
-    }
-    const lendStr = Object.entries(lendByCurrency)
-      .map(([c, v]) => `${c} ${(v / 100).toFixed(2)}`)
-      .join(' | ');
+interface PeopleSummaryInputs {
+  people: Person[];
+  ledgers: LendLedger[];
+  lendEntries: LendEntry[];
+  groups: SplitGroup[];
+  members: SplitGroupMember[];
+  expenses: SplitExpense[];
+  payers: SplitPayer[];
+  shares: SplitShare[];
+  settlements: SplitSettlement[];
+}
 
-    const personGroups = members.filter((m) => m.personId === p.id);
-    const splitByCurrency: Record<string, number> = {};
-    for (const m of personGroups) {
-      const g = groups.find((x) => x.id === m.groupId);
-      if (!g) continue;
-      const gExpIds = new Set<string>([]);
-      // Find expenses in this group via payers or shares (in a real impl we'd query splitExpenses too)
-      const personPayers = payers.filter((x) => x.personId === p.id);
-      const personShares = shares.filter((x) => x.personId === p.id);
-      const personSets = settlements.filter((x) => x.fromPersonId === p.id || x.toPersonId === p.id);
-      const paid = personPayers.reduce((a, b) => a + b.amountMinor, 0);
-      const share = personShares.reduce((a, b) => a + b.amountMinor, 0);
-      const sent = personSets.filter((x) => x.fromPersonId === p.id).reduce((a, b) => a + b.amountMinor, 0);
-      const received = personSets.filter((x) => x.toPersonId === p.id).reduce((a, b) => a + b.amountMinor, 0);
-      const bal = paid - share + sent - received;
-      splitByCurrency[g.currency] = (splitByCurrency[g.currency] ?? 0) + bal;
-      // mark expenseIds so eslint doesn't flag unused
-      gExpIds.add('');
-    }
-    const splitStr = Object.entries(splitByCurrency)
-      .map(([c, v]) => `${c} ${(v / 100).toFixed(2)}`)
-      .join(' | ');
+function buildPeopleSummary(inputs: PeopleSummaryInputs): string {
+  const lendTotals = new Map<string, Map<string, number>>();
+  const splitTotals = new Map<string, Map<string, number>>();
 
-    lines.push([p.id, p.name, lendStr, personLedgers[0]?.currency ?? '', splitStr, ''].join(','));
+  const entriesByLedger = new Map<string, LendEntry[]>();
+  for (const entry of inputs.lendEntries) {
+    if (entry.deletedAt) continue;
+    pushGrouped(entriesByLedger, entry.ledgerId, entry);
+  }
+
+  for (const ledger of inputs.ledgers) {
+    if (ledger.deletedAt || ledger.archived) continue;
+    const balance = (entriesByLedger.get(ledger.id) ?? []).reduce(
+      (sum, entry) => sum + entryToSignedAmount(entry),
+      0,
+    );
+    addCurrencyTotal(lendTotals, ledger.personId, ledger.currency, balance);
+  }
+
+  const membersByGroup = new Map<string, SplitGroupMember[]>();
+  const expensesByGroup = new Map<string, SplitExpense[]>();
+  const payersByGroup = new Map<string, SplitPayer[]>();
+  const sharesByGroup = new Map<string, SplitShare[]>();
+  const settlementsByGroup = new Map<string, SplitSettlement[]>();
+  const groupIdByExpense = new Map<string, string>();
+
+  for (const member of inputs.members) {
+    if (!member.deletedAt) pushGrouped(membersByGroup, member.groupId, member);
+  }
+  for (const expense of inputs.expenses) {
+    if (expense.deletedAt) continue;
+    pushGrouped(expensesByGroup, expense.groupId, expense);
+    groupIdByExpense.set(expense.id, expense.groupId);
+  }
+  for (const payer of inputs.payers) {
+    if (payer.deletedAt) continue;
+    const groupId = groupIdByExpense.get(payer.expenseId);
+    if (groupId) pushGrouped(payersByGroup, groupId, payer);
+  }
+  for (const share of inputs.shares) {
+    if (share.deletedAt) continue;
+    const groupId = groupIdByExpense.get(share.expenseId);
+    if (groupId) pushGrouped(sharesByGroup, groupId, share);
+  }
+  for (const settlement of inputs.settlements) {
+    if (!settlement.deletedAt) pushGrouped(settlementsByGroup, settlement.groupId, settlement);
+  }
+
+  for (const group of inputs.groups) {
+    if (group.deletedAt) continue;
+    const balances = computeMemberBalances({
+      group,
+      members: membersByGroup.get(group.id) ?? [],
+      expenses: expensesByGroup.get(group.id) ?? [],
+      payers: payersByGroup.get(group.id) ?? [],
+      shares: sharesByGroup.get(group.id) ?? [],
+      settlements: settlementsByGroup.get(group.id) ?? [],
+    });
+    for (const [personId, balance] of balances) {
+      addCurrencyTotal(splitTotals, personId, group.currency, balance);
+    }
+  }
+
+  const lines = [csvRow(['person_id', 'person_name', 'lend_balances', 'split_balances'])];
+  for (const person of inputs.people) {
+    if (person.deletedAt) continue;
+    lines.push(
+      csvRow([
+        person.id,
+        person.name,
+        formatCurrencyTotals(lendTotals.get(person.id)),
+        formatCurrencyTotals(splitTotals.get(person.id)),
+      ]),
+    );
   }
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
 }
 
-function buildMonthlySummary(trackTx: Array<{ deletedAt?: string; date: string; type: string; amountMinor: number; currency: string }>): string {
-  const byMonth: Record<string, { spent: number; income: number; currency: string }> = {};
-  for (const t of trackTx) {
-    if (t.deletedAt) continue;
-    const month = t.date.slice(0, 7);
-    const cur = (byMonth[month] ??= { spent: 0, income: 0, currency: t.currency });
-    if (t.type === 'expense') cur.spent += t.amountMinor;
-    else cur.income += t.amountMinor;
+function buildMonthlySummary(trackTx: TrackTransaction[], defaultCurrency: string): string {
+  const byMonthCurrency = new Map<
+    string,
+    { month: string; spent: number; income: number; currency: string }
+  >();
+
+  for (const transaction of trackTx) {
+    if (transaction.deletedAt) continue;
+    const month = transaction.date.slice(0, 7);
+    const key = `${month}\u0000${transaction.currency}`;
+    const current = byMonthCurrency.get(key) ?? {
+      month,
+      spent: 0,
+      income: 0,
+      currency: transaction.currency,
+    };
+    if (transaction.type === 'expense') current.spent += transaction.amountMinor;
+    else current.income += transaction.amountMinor;
+    byMonthCurrency.set(key, current);
   }
-  const lines: string[] = [];
-  lines.push(['month', 'spent', 'income', 'currency'].join(','));
-  for (const [month, v] of Object.entries(byMonth).sort()) {
-    lines.push([month, minorToDecimal(v.spent, v.currency).toFixed(2), minorToDecimal(v.income, v.currency).toFixed(2), v.currency].join(','));
+
+  const currentMonth = toMonthKey();
+  const currentKey = `${currentMonth}\u0000${defaultCurrency}`;
+  if (!byMonthCurrency.has(currentKey)) {
+    byMonthCurrency.set(currentKey, {
+      month: currentMonth,
+      spent: 0,
+      income: 0,
+      currency: defaultCurrency,
+    });
   }
-  // Always include the current month row even if zero.
-  const cur = toMonthKey();
-  if (!byMonth[cur]) {
-    lines.push([cur, '0.00', '0.00', 'INR'].join(','));
+
+  const rows = [...byMonthCurrency.values()].sort(
+    (a, b) => a.month.localeCompare(b.month) || a.currency.localeCompare(b.currency),
+  );
+  const lines = [csvRow(['month', 'spent', 'income', 'currency'])];
+  for (const row of rows) {
+    lines.push(
+      csvRow([
+        row.month,
+        minorToDecimalString(row.spent, row.currency),
+        minorToDecimalString(row.income, row.currency),
+        row.currency,
+      ]),
+    );
   }
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
+}
+
+function pushGrouped<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const rows = map.get(key) ?? [];
+  rows.push(value);
+  map.set(key, rows);
+}
+
+function addCurrencyTotal(
+  totals: Map<string, Map<string, number>>,
+  personId: string,
+  currency: string,
+  amountMinor: number,
+): void {
+  const byCurrency = totals.get(personId) ?? new Map<string, number>();
+  byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amountMinor);
+  totals.set(personId, byCurrency);
+}
+
+function formatCurrencyTotals(totals: Map<string, number> | undefined): string {
+  if (!totals) return '';
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, amountMinor]) => `${currency} ${minorToDecimalString(amountMinor, currency)}`)
+    .join(' | ');
 }
