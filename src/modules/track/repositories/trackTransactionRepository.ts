@@ -22,7 +22,7 @@ import {
   cleanTransactionInput,
   type TrackTransactionInput,
 } from '../domain/validation';
-import { isInMonth } from '@shared/dates';
+import { monthDateRange } from '@shared/dates';
 import type { TrackTransaction } from '@db/schema';
 
 function clean(input: Partial<TrackTransactionInput>): Partial<TrackTransactionInput> {
@@ -38,26 +38,32 @@ function clean(input: Partial<TrackTransactionInput>): Partial<TrackTransactionI
 export const trackTransactionRepository = {
   /** All active (non-deleted) transactions, newest date first. */
   async list(): Promise<TrackTransaction[]> {
-    const all = await getDB().trackTransactions.toArray();
-    return all
-      .filter((t) => !t.deletedAt)
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return getDB()
+      .trackTransactions.orderBy('date')
+      .reverse()
+      .filter((transaction) => !transaction.deletedAt)
+      .toArray();
   },
 
   /** Active transactions within a single month (YYYY-MM). */
   async listByMonth(month: string): Promise<TrackTransaction[]> {
-    const all = await getDB().trackTransactions.toArray();
-    return all
-      .filter((t) => !t.deletedAt && isInMonth(t.date, month))
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const { fromInclusive, toExclusive } = monthDateRange(month);
+    return getDB()
+      .trackTransactions.where('date')
+      .between(fromInclusive, toExclusive, true, false)
+      .reverse()
+      .filter((transaction) => !transaction.deletedAt)
+      .toArray();
   },
 
   /** Active transactions within an inclusive [fromDate, toDate] range. */
   async listByDateRange(fromDate: string, toDate: string): Promise<TrackTransaction[]> {
-    const all = await getDB().trackTransactions.toArray();
-    return all
-      .filter((t) => !t.deletedAt && t.date >= fromDate && t.date <= toDate)
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return getDB()
+      .trackTransactions.where('date')
+      .between(fromDate, toDate, true, true)
+      .reverse()
+      .filter((transaction) => !transaction.deletedAt)
+      .toArray();
   },
 
   async get(id: string): Promise<TrackTransaction | undefined> {
