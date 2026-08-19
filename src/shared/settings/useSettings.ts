@@ -12,6 +12,7 @@ export interface SettingsStats {
   track: number;
   groups: number;
   lendLedgers: number;
+  lendEntries: number;
   budgets: number;
 }
 
@@ -19,11 +20,12 @@ export interface SettingsStats {
 export function useSettingsStats(): SettingsStats | undefined {
   return useLiveQuery(async () => {
     const db = getDB();
-    const [peopleRows, track, groups, lendLedgers, budgets] = await Promise.all([
+    const [peopleRows, track, groups, lendLedgers, lendEntries, budgets] = await Promise.all([
       db.people.toArray(),
       db.trackTransactions.count(),
       db.splitGroups.count(),
       db.lendLedgers.count(),
+      db.lendEntries.count(),
       db.trackBudgets.count(),
     ]);
     return {
@@ -31,6 +33,7 @@ export function useSettingsStats(): SettingsStats | undefined {
       track,
       groups,
       lendLedgers,
+      lendEntries,
       budgets,
     };
   }, []);
