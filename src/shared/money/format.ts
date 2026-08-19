@@ -32,14 +32,17 @@ export function formatMoney(money: Money, locale?: string): string {
  * Parse a user-entered string (e.g. "1,250.50" or "₹1,250.50")
  * into a Money value.
  *
- * Strips currency symbols and thousands separators, then
- * delegates to `decimalToMinor`.
+ * Whitespace/thousands separators and a leading currency label/symbol are
+ * accepted. Characters inside the numeric portion are not stripped: malformed
+ * values such as `1e3` must fail instead of being silently rewritten.
  */
 export function parseMoney(input: string, currency: CurrencyCode): Money {
-  const cleaned = input
-    .replace(/[\s,]/g, '')
-    .replace(/[^0-9.-]/g, '');
-  if (cleaned === '' || cleaned === '-' || cleaned === '.') {
+  let cleaned = input.trim().replace(/[\s,]/g, '');
+  if (cleaned.toUpperCase().startsWith(currency.toUpperCase())) {
+    cleaned = cleaned.slice(currency.length);
+  }
+  cleaned = cleaned.replace(/^[^0-9+-]+/, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '+') {
     throw new Error('parseMoney: empty amount');
   }
   const amountMinor = decimalToMinor(cleaned, currency);
