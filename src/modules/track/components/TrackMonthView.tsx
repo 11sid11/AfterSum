@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, Button, Money, EmptyState, Spinner } from '@components/ui';
 import { useAppSettings } from '@shared/settings/useSettings';
 import { useTrackMonthlySummary, useTrackTransactionsForMonth } from '../queries';
-import { todayDateOnly, toMonthKey } from '@shared/dates';
+import { toMonthKey } from '@shared/dates';
 import { MonthNavigator } from './MonthNavigator';
 import { TransactionListItem } from './TransactionListItem';
 import { CategoryBreakdown } from './CategoryBreakdown';
@@ -41,7 +41,7 @@ export function TrackMonthView({ month, showFilters = true }: TrackMonthViewProp
       : queriedMonthTxs;
   }, [queriedMonthTxs, selectedCategoryId]);
 
-  const currentMonth = toMonthKey(new Date(todayDateOnly()));
+  const currentMonth = toMonthKey();
   const isCurrentMonth = month === currentMonth;
   const hide = settings?.hideAmounts ?? false;
 
