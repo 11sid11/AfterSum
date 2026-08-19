@@ -97,6 +97,19 @@ describe('trackTransactionRepository', () => {
     expect(updated.revision).toBe(before + 1);
   });
 
+  it('supports partial updates that do not include title', async () => {
+    const t = await trackTransactionRepository.create({
+      type: 'expense',
+      title: 'Lunch',
+      amountMinor: 1000,
+      currency: 'INR',
+      date: '2026-08-01',
+    });
+    const updated = await trackTransactionRepository.update(t.id, { amountMinor: 1250 });
+    expect(updated.title).toBe('Lunch');
+    expect(updated.amountMinor).toBe(1250);
+  });
+
   it('softDelete + restore round-trips', async () => {
     const t = await trackTransactionRepository.create({
       type: 'expense',
@@ -173,6 +186,18 @@ describe('trackTransactionRepository', () => {
       }),
     ).rejects.toThrow();
   });
+
+  it('rejects impossible calendar dates', async () => {
+    await expect(
+      trackTransactionRepository.create({
+        type: 'expense',
+        title: 'bad date',
+        amountMinor: 100,
+        currency: 'INR',
+        date: '2026-02-30',
+      }),
+    ).rejects.toThrow(/calendar date/);
+  });
 });
 
 describe('trackBudgetRepository', () => {
@@ -196,6 +221,16 @@ describe('trackBudgetRepository', () => {
     expect(b.amountMinor).toBe(40000);
     const list = await trackBudgetRepository.listAll();
     expect(list).toHaveLength(1);
+  });
+
+  it('rejects impossible month keys', async () => {
+    await expect(
+      trackBudgetRepository.setForMonth({
+        month: '2026-13',
+        amountMinor: 30000,
+        currency: 'INR',
+      }),
+    ).rejects.toThrow(/calendar month/);
   });
 
   it('deleteByMonth removes the row', async () => {
