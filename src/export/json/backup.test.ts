@@ -7,6 +7,7 @@ import {
   restoreBackup,
   summarizeBackup,
   validateBackup,
+  type Backup,
 } from './backup';
 import { getDB } from '@db/database';
 import { settingsRepository } from '@shared/settings/repository';
@@ -15,7 +16,7 @@ import { SELF_PERSON_ID } from '@db/seed';
 const timestamp = '2026-08-17T00:00:00.000Z';
 const entity = { createdAt: timestamp, updatedAt: timestamp, revision: 1 };
 
-function validEmptyBackup() {
+function validEmptyBackup(): Backup {
   return {
     format: BACKUP_FORMAT,
     schemaVersion: BACKUP_SCHEMA_VERSION,
