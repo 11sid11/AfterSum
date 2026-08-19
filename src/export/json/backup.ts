@@ -356,7 +356,7 @@ function validateBackupRelations(backup: Backup): void {
     assertSafeAmount(`split.expenses.${index}.amountMinor`, expense.amountMinor);
     const group = groupsById.get(expense.groupId);
     if (!group) fail(`split.expenses.${index}.groupId`, 'group does not exist');
-    if (expense.currency !== group.currency) {
+    if (expense.currency !== group!.currency) {
       fail(`split.expenses.${index}.currency`, 'currency does not match its group');
     }
     if (!isValidDateOnly(expense.date)) fail(`split.expenses.${index}.date`, 'invalid calendar date');
@@ -402,7 +402,7 @@ function validateBackupRelations(backup: Backup): void {
     if (settlement.fromPersonId === settlement.toPersonId) {
       fail(`split.settlements.${index}`, 'payer and receiver must be different people');
     }
-    if (settlement.currency !== group.currency) {
+    if (settlement.currency !== group!.currency) {
       fail(`split.settlements.${index}.currency`, 'currency does not match its group');
     }
     if (!isValidDateOnly(settlement.date)) {
