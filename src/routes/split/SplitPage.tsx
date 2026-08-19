@@ -19,10 +19,9 @@ import { useArchivedSplitGroups } from '@modules/split/queries/useArchivedSplitG
 import { GroupCard } from '@modules/split/components/GroupCard';
 import { MemberSelector } from '@modules/split/components/MemberSelector';
 import { splitGroupRepository } from '@modules/split/repositories/splitGroupRepository';
-import { splitGroupMemberRepository } from '@modules/split/repositories/splitGroupMemberRepository';
+import { createSplitTrip } from '@modules/split/services/createTrip';
 import { normalizePersonName, personNameKey } from '@shared/people/domain';
 import { usePeople, useSelf } from '@shared/people/queries';
-import { personRepository } from '@shared/people/repository';
 import { useAppSettings } from '@shared/settings/useSettings';
 
 export function SplitPage() {
@@ -112,14 +111,22 @@ function CreateTripModal({ defaultCurrency, selfPersonId, onClose, onCreated }: 
   const [error, setError] = useState<string>();
 
   const selectablePeople = useMemo(() => (people ?? []).filter((person) => person.id !== selfPersonId && !person.isSelf), [people, selfPersonId]);
+  const findExistingPerson = (candidate: string) => {
+    const candidateKey = personNameKey(candidate);
+    return (people ?? []).find((person) => personNameKey(person.name) === candidateKey);
+  };
+  const duplicateMessage = (existing: { id: string; name: string }) =>
+    existing.id === selfPersonId
+      ? `${existing.name} is your own profile. Choose another name.`
+      : `${existing.name} is already saved. Select them above instead.`;
 
   const addPendingPerson = () => {
     const candidate = normalizePersonName(newPersonName);
     if (!candidate) return;
     const candidateKey = personNameKey(candidate);
-    const existing = selectablePeople.find((person) => personNameKey(person.name) === candidateKey);
+    const existing = findExistingPerson(candidate);
     if (existing) {
-      setError(`${existing.name} is already saved. Select them above instead.`);
+      setError(duplicateMessage(existing));
       return;
     }
     if (pendingPeople.some((personName) => personNameKey(personName) === candidateKey)) {
@@ -139,9 +146,9 @@ function CreateTripModal({ defaultCurrency, selfPersonId, onClose, onCreated }: 
     const inlineName = normalizePersonName(newPersonName);
     if (inlineName) {
       const inlineKey = personNameKey(inlineName);
-      const existing = selectablePeople.find((person) => personNameKey(person.name) === inlineKey);
+      const existing = findExistingPerson(inlineName);
       if (existing) {
-        setError(`${existing.name} is already saved. Select them above instead.`);
+        setError(duplicateMessage(existing));
         return;
       }
       if (!peopleToCreate.some((personName) => personNameKey(personName) === inlineKey)) {
@@ -152,13 +159,14 @@ function CreateTripModal({ defaultCurrency, selfPersonId, onClose, onCreated }: 
     setSubmitting(true);
     setError(undefined);
     try {
-      const group = await splitGroupRepository.create({ name: name.trim(), description: description.trim() || undefined, currency });
-      await splitGroupMemberRepository.getOrCreate(group.id, selfPersonId);
-      for (const personId of selectedMemberIds) await splitGroupMemberRepository.getOrCreate(group.id, personId);
-      for (const personName of peopleToCreate) {
-        const person = await personRepository.create({ name: personName });
-        await splitGroupMemberRepository.getOrCreate(group.id, person.id);
-      }
+      const group = await createSplitTrip({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        currency,
+        selfPersonId,
+        memberPersonIds: selectedMemberIds,
+        newPersonNames: peopleToCreate,
+      });
       celebrate({ kind: 'added', message: 'Trip created' });
       onCreated(group.id);
     } catch (err) {
