@@ -9,7 +9,8 @@
 import { z } from 'zod';
 import { getDB } from '@db/database';
 import { APP_VERSION } from '@app/constants';
-import { nowISO } from '@shared/dates';
+import { isValidDateOnly, isValidMonthKey, nowISO } from '@shared/dates';
+import { personRepository } from '@shared/people/repository';
 import { settingsRepository } from '@shared/settings/repository';
 import type {
   Person,
@@ -199,8 +200,8 @@ export interface Backup {
 export async function exportBackup(): Promise<Backup> {
   const db = getDB();
 
-  // Ensure first-run defaults exist before opening the read-only snapshot.
-  await settingsRepository.get();
+  // Ensure first-run identity/settings exist before opening the read-only snapshot.
+  await Promise.all([settingsRepository.get(), personRepository.ensureSelf()]);
 
   const [
     settings,
@@ -273,7 +274,7 @@ export async function exportBackup(): Promise<Backup> {
   };
 }
 
-/** Validate a parsed backup object. Throws with the first invalid path. */
+/** Validate a parsed backup object and its cross-table financial relationships. */
 export function validateBackup(input: unknown): Backup {
   const result = backupSchema.safeParse(input);
   if (!result.success) {
@@ -281,7 +282,151 @@ export function validateBackup(input: unknown): Backup {
     const path = issue?.path.join('.');
     throw new Error(`Invalid backup${path ? ` at ${path}` : ''}: ${issue?.message ?? 'unknown validation error'}`);
   }
-  return result.data as Backup;
+  const backup = result.data as Backup;
+  validateBackupRelations(backup);
+  return backup;
+}
+
+function validateBackupRelations(backup: Backup): void {
+  const fail = (path: string, message: string): never => {
+    throw new Error(`Invalid backup at ${path}: ${message}`);
+  };
+  const ids = <T extends { id: string }>(path: string, rows: T[]): Set<string> => {
+    const out = new Set<string>();
+    for (const [index, row] of rows.entries()) {
+      if (out.has(row.id)) fail(`${path}.${index}.id`, `duplicate id ${row.id}`);
+      out.add(row.id);
+    }
+    return out;
+  };
+  const assertSafeAmount = (path: string, amount: number) => {
+    if (!Number.isSafeInteger(amount)) fail(path, 'amount must be a safe integer');
+  };
+
+  const peopleIds = ids('shared.people', backup.shared.people);
+  const categoryIds = ids('track.categories', backup.track.categories);
+  ids('track.transactions', backup.track.transactions);
+  ids('track.budgets', backup.track.budgets);
+  ids('track.recurringRules', backup.track.recurringRules);
+  const groupIds = ids('split.groups', backup.split.groups);
+  ids('split.members', backup.split.members);
+  const expenseIds = ids('split.expenses', backup.split.expenses);
+  ids('split.payers', backup.split.payers);
+  ids('split.shares', backup.split.shares);
+  ids('split.settlements', backup.split.settlements);
+  const ledgerIds = ids('lend.ledgers', backup.lend.ledgers);
+  ids('lend.entries', backup.lend.entries);
+
+  const activeSelf = backup.shared.people.filter((person) => person.isSelf && !person.deletedAt);
+  if (activeSelf.length !== 1) {
+    fail('shared.people', 'exactly one active self person is required');
+  }
+
+  for (const [index, transaction] of backup.track.transactions.entries()) {
+    assertSafeAmount(`track.transactions.${index}.amountMinor`, transaction.amountMinor);
+    if (!isValidDateOnly(transaction.date)) {
+      fail(`track.transactions.${index}.date`, 'invalid calendar date');
+    }
+    if (transaction.categoryId && !categoryIds.has(transaction.categoryId)) {
+      fail(`track.transactions.${index}.categoryId`, 'category does not exist');
+    }
+  }
+  for (const [index, budget] of backup.track.budgets.entries()) {
+    assertSafeAmount(`track.budgets.${index}.amountMinor`, budget.amountMinor);
+    if (!isValidMonthKey(budget.month)) fail(`track.budgets.${index}.month`, 'invalid calendar month');
+  }
+  for (const [index, rule] of backup.track.recurringRules.entries()) {
+    if (rule.amountMinor !== undefined) {
+      assertSafeAmount(`track.recurringRules.${index}.amountMinor`, rule.amountMinor);
+    }
+    if (!isValidDateOnly(rule.nextDate)) {
+      fail(`track.recurringRules.${index}.nextDate`, 'invalid calendar date');
+    }
+    if (rule.categoryId && !categoryIds.has(rule.categoryId)) {
+      fail(`track.recurringRules.${index}.categoryId`, 'category does not exist');
+    }
+  }
+
+  const groupsById = new Map(backup.split.groups.map((group) => [group.id, group]));
+  for (const [index, member] of backup.split.members.entries()) {
+    if (!groupIds.has(member.groupId)) fail(`split.members.${index}.groupId`, 'group does not exist');
+    if (!peopleIds.has(member.personId)) fail(`split.members.${index}.personId`, 'person does not exist');
+  }
+  for (const [index, expense] of backup.split.expenses.entries()) {
+    assertSafeAmount(`split.expenses.${index}.amountMinor`, expense.amountMinor);
+    const group = groupsById.get(expense.groupId);
+    if (!group) fail(`split.expenses.${index}.groupId`, 'group does not exist');
+    if (expense.currency !== group.currency) {
+      fail(`split.expenses.${index}.currency`, 'currency does not match its group');
+    }
+    if (!isValidDateOnly(expense.date)) fail(`split.expenses.${index}.date`, 'invalid calendar date');
+  }
+  for (const [index, payer] of backup.split.payers.entries()) {
+    assertSafeAmount(`split.payers.${index}.amountMinor`, payer.amountMinor);
+    if (!expenseIds.has(payer.expenseId)) fail(`split.payers.${index}.expenseId`, 'expense does not exist');
+    if (!peopleIds.has(payer.personId)) fail(`split.payers.${index}.personId`, 'person does not exist');
+  }
+  for (const [index, share] of backup.split.shares.entries()) {
+    assertSafeAmount(`split.shares.${index}.amountMinor`, share.amountMinor);
+    if (!expenseIds.has(share.expenseId)) fail(`split.shares.${index}.expenseId`, 'expense does not exist');
+    if (!peopleIds.has(share.personId)) fail(`split.shares.${index}.personId`, 'person does not exist');
+  }
+
+  const payerTotals = new Map<string, number>();
+  for (const payer of backup.split.payers) {
+    payerTotals.set(payer.expenseId, (payerTotals.get(payer.expenseId) ?? 0) + payer.amountMinor);
+  }
+  const shareTotals = new Map<string, number>();
+  for (const share of backup.split.shares) {
+    shareTotals.set(share.expenseId, (shareTotals.get(share.expenseId) ?? 0) + share.amountMinor);
+  }
+  for (const [index, expense] of backup.split.expenses.entries()) {
+    if ((payerTotals.get(expense.id) ?? 0) !== expense.amountMinor) {
+      fail(`split.expenses.${index}`, 'payer totals do not match expense amount');
+    }
+    if ((shareTotals.get(expense.id) ?? 0) !== expense.amountMinor) {
+      fail(`split.expenses.${index}`, 'share totals do not match expense amount');
+    }
+  }
+
+  for (const [index, settlement] of backup.split.settlements.entries()) {
+    assertSafeAmount(`split.settlements.${index}.amountMinor`, settlement.amountMinor);
+    const group = groupsById.get(settlement.groupId);
+    if (!group) fail(`split.settlements.${index}.groupId`, 'group does not exist');
+    if (!peopleIds.has(settlement.fromPersonId)) {
+      fail(`split.settlements.${index}.fromPersonId`, 'person does not exist');
+    }
+    if (!peopleIds.has(settlement.toPersonId)) {
+      fail(`split.settlements.${index}.toPersonId`, 'person does not exist');
+    }
+    if (settlement.fromPersonId === settlement.toPersonId) {
+      fail(`split.settlements.${index}`, 'payer and receiver must be different people');
+    }
+    if (settlement.currency !== group.currency) {
+      fail(`split.settlements.${index}.currency`, 'currency does not match its group');
+    }
+    if (!isValidDateOnly(settlement.date)) {
+      fail(`split.settlements.${index}.date`, 'invalid calendar date');
+    }
+  }
+
+  for (const [index, ledger] of backup.lend.ledgers.entries()) {
+    if (!peopleIds.has(ledger.personId)) fail(`lend.ledgers.${index}.personId`, 'person does not exist');
+  }
+  for (const [index, entry] of backup.lend.entries.entries()) {
+    assertSafeAmount(`lend.entries.${index}.amountMinor`, entry.amountMinor);
+    if (!ledgerIds.has(entry.ledgerId)) fail(`lend.entries.${index}.ledgerId`, 'ledger does not exist');
+    if (!isValidDateOnly(entry.date)) fail(`lend.entries.${index}.date`, 'invalid calendar date');
+    if (entry.dueDate && !isValidDateOnly(entry.dueDate)) {
+      fail(`lend.entries.${index}.dueDate`, 'invalid calendar date');
+    }
+    if (entry.type !== 'adjustment' && entry.amountMinor <= 0) {
+      fail(`lend.entries.${index}.amountMinor`, 'non-adjustment amount must be positive');
+    }
+    if (entry.type === 'adjustment' && entry.amountMinor === 0) {
+      fail(`lend.entries.${index}.amountMinor`, 'adjustment amount must not be zero');
+    }
+  }
 }
 
 /** Restore a backup into the local database atomically. */
