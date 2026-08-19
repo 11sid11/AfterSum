@@ -5,24 +5,32 @@ import type { CurrencyCode } from './types';
  * Convert a decimal amount (e.g. `12.50`) to integer minor units
  * (e.g. `1250`) for the given currency.
  *
- * Uses banker-safe integer math. Truncates the input to the
- * currency's number of decimals first to avoid float surprises.
+ * String inputs must use no more fractional digits than the currency supports.
+ * This avoids silently changing what a user typed. Numeric inputs are rounded
+ * to the currency precision before conversion because their original textual
+ * precision is no longer available.
  */
 export function decimalToMinor(amount: number | string, currency: CurrencyCode): number {
   const decimals = currencyDecimals(currency);
   const str = typeof amount === 'number' ? amount.toFixed(decimals) : amount.trim();
-  // Reject any non-numeric characters
-  if (!/^-?\d+(\.\d+)?$/.test(str)) {
+  if (!/^-?\d+(?:\.\d*)?$/.test(str)) {
     throw new Error(`decimalToMinor: invalid decimal amount "${amount}"`);
   }
+
   const negative = str.startsWith('-');
   const body = negative ? str.slice(1) : str;
   const [intPart, fracPart = ''] = body.split('.');
-  const paddedFrac = (fracPart + '0'.repeat(decimals)).slice(0, decimals);
+  if (fracPart.length > decimals) {
+    throw new Error(
+      `decimalToMinor: ${currency} supports at most ${decimals} fractional digit${decimals === 1 ? '' : 's'}`,
+    );
+  }
+
+  const paddedFrac = fracPart.padEnd(decimals, '0');
   const combined = `${intPart}${paddedFrac}`.replace(/^0+(?=\d)/, '');
   const minor = Number(combined);
-  if (!Number.isFinite(minor)) {
-    throw new Error(`decimalToMinor: failed to convert "${amount}"`);
+  if (!Number.isSafeInteger(minor)) {
+    throw new Error(`decimalToMinor: amount is outside the safe integer range: "${amount}"`);
   }
   return negative ? -minor : minor;
 }
