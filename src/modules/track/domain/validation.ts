@@ -13,12 +13,6 @@
  *     to indicate direction; amountMinor is the magnitude)
  *   - reject blank titles
  *   - reject malformed dates
- *
- * Note: schemas are kept simple (no `.preprocess` / `.refine`)
- * so they remain StandardSchemaV1-compatible with TanStack
- * Form's strict type expectations. Trimming and date sanity
- * are done in the repository layer (`cleanTransactionInput`
- * + `assertTransactionInvariants`).
  */
 
 import { z } from 'zod';
@@ -32,18 +26,21 @@ import type {
   TrackBudget,
   TrackRecurringRule,
 } from '@db/schema';
+import { isValidDateOnly, isValidMonthKey } from '@shared/dates';
 
-/** YYYY-MM-DD date string. */
+/** YYYY-MM-DD date string representing a real calendar date. */
 const dateOnly = z
   .string()
   .min(10, 'Date is required')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD');
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+  .refine(isValidDateOnly, 'Invalid calendar date');
 
 /** YYYY-MM month key. */
 const monthKey = z
   .string()
   .min(7, 'Month is required')
-  .regex(/^\d{4}-\d{2}$/, 'Month must be YYYY-MM');
+  .regex(/^\d{4}-\d{2}$/, 'Month must be YYYY-MM')
+  .refine(isValidMonthKey, 'Invalid calendar month');
 
 /** Currency code (3-letter typical, max 8 to be safe). */
 const currencyCode = z
@@ -141,7 +138,6 @@ export function assertTransactionInvariants(input: TrackTransactionInput): void 
   if (!Number.isFinite(input.amountMinor) || input.amountMinor <= 0) {
     throw new Error('Amount must be a positive integer in minor units');
   }
-  // date shape was already checked by the regex; no further check.
 }
 
 /** Full entity schema. */

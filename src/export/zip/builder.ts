@@ -103,6 +103,10 @@ export interface FullZipOptions {
   includeOverview?: boolean;
 }
 
+function activeRows<T extends { deletedAt?: string }>(rows: T[]): T[] {
+  return rows.filter((row) => !row.deletedAt);
+}
+
 export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
   const db = getDB();
   const [
@@ -157,6 +161,26 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
       ]),
   );
 
+  // The CSV package is an analysis/export view, not a restore format. Export
+  // only rows that are active in normal app behavior, and keep child tables
+  // scoped to active parents so the package never contains dangling rows.
+  const exportPeople = activeRows(people);
+  const exportTrackTx = activeRows(trackTx);
+  const exportTrackCats = activeRows(trackCats);
+  const exportTrackBudgets = activeRows(trackBudgets);
+  const exportTrackRecurring = activeRows(trackRecurring);
+  const exportSplitGroups = activeRows(splitGroups);
+  const activeGroupIds = new Set(exportSplitGroups.map((group) => group.id));
+  const exportSplitMembers = activeRows(splitMembers).filter((member) => activeGroupIds.has(member.groupId));
+  const exportSplitExpenses = activeRows(splitExpenses).filter((expense) => activeGroupIds.has(expense.groupId));
+  const activeExpenseIds = new Set(exportSplitExpenses.map((expense) => expense.id));
+  const exportSplitPayers = activeRows(splitPayers).filter((payer) => activeExpenseIds.has(payer.expenseId));
+  const exportSplitShares = activeRows(splitShares).filter((share) => activeExpenseIds.has(share.expenseId));
+  const exportSplitSettlements = activeRows(splitSettlements).filter((settlement) => activeGroupIds.has(settlement.groupId));
+  const exportLendLedgers = activeRows(lendLedgers);
+  const activeLedgerIds = new Set(exportLendLedgers.map((ledger) => ledger.id));
+  const exportLendEntries = activeRows(lendEntries).filter((entry) => activeLedgerIds.has(entry.ledgerId));
+
   const defaultCurrency = settings?.defaultCurrency ?? 'INR';
   const inputs: Record<string, Uint8Array> = {
     'README.txt': strToU8(README_TEXT),
@@ -168,56 +192,56 @@ export async function buildFullZip(opts: FullZipOptions = {}): Promise<Blob> {
           exportedAt: nowISO(),
           appVersion: APP_VERSION,
           counts: {
-            people: people.length,
-            trackTransactions: trackTx.length,
-            trackCategories: trackCats.length,
-            trackBudgets: trackBudgets.length,
-            trackRecurring: trackRecurring.length,
-            splitGroups: splitGroups.length,
-            splitMembers: splitMembers.length,
-            splitExpenses: splitExpenses.length,
-            splitPayers: splitPayers.length,
-            splitShares: splitShares.length,
-            splitSettlements: splitSettlements.length,
-            lendLedgers: lendLedgers.length,
-            lendEntries: lendEntries.length,
+            people: exportPeople.length,
+            trackTransactions: exportTrackTx.length,
+            trackCategories: exportTrackCats.length,
+            trackBudgets: exportTrackBudgets.length,
+            trackRecurring: exportTrackRecurring.length,
+            splitGroups: exportSplitGroups.length,
+            splitMembers: exportSplitMembers.length,
+            splitExpenses: exportSplitExpenses.length,
+            splitPayers: exportSplitPayers.length,
+            splitShares: exportSplitShares.length,
+            splitSettlements: exportSplitSettlements.length,
+            lendLedgers: exportLendLedgers.length,
+            lendEntries: exportLendEntries.length,
           },
         } satisfies Manifest,
         null,
         2,
       ),
     ),
-    'shared/people.csv': strToU8(csvOfPeople(people)),
-    'track/transactions.csv': strToU8(csvOfTrackTransactions(trackTx, trackCats)),
-    'track/categories.csv': strToU8(csvOfTrackCategories(trackCats)),
-    'track/budgets.csv': strToU8(csvOfTrackBudgets(trackBudgets)),
-    'track/recurring.csv': strToU8(csvOfTrackRecurring(trackRecurring)),
-    'split/groups.csv': strToU8(csvOfSplitGroups(splitGroups)),
-    'split/members.csv': strToU8(csvOfSplitMembers(splitMembers, people)),
-    'split/expenses.csv': strToU8(csvOfSplitExpenses(splitExpenses, splitGroups)),
-    'split/payers.csv': strToU8(csvOfSplitPayers(splitPayers, splitExpenses, people)),
-    'split/shares.csv': strToU8(csvOfSplitShares(splitShares, splitExpenses, people)),
-    'split/settlements.csv': strToU8(csvOfSplitSettlements(splitSettlements, splitGroups, people)),
-    'lend/ledgers.csv': strToU8(csvOfLendLedgers(lendLedgers, people)),
-    'lend/entries.csv': strToU8(csvOfLendEntries(lendEntries, lendLedgers, people)),
+    'shared/people.csv': strToU8(csvOfPeople(exportPeople)),
+    'track/transactions.csv': strToU8(csvOfTrackTransactions(exportTrackTx, exportTrackCats)),
+    'track/categories.csv': strToU8(csvOfTrackCategories(exportTrackCats)),
+    'track/budgets.csv': strToU8(csvOfTrackBudgets(exportTrackBudgets)),
+    'track/recurring.csv': strToU8(csvOfTrackRecurring(exportTrackRecurring)),
+    'split/groups.csv': strToU8(csvOfSplitGroups(exportSplitGroups)),
+    'split/members.csv': strToU8(csvOfSplitMembers(exportSplitMembers, exportPeople)),
+    'split/expenses.csv': strToU8(csvOfSplitExpenses(exportSplitExpenses, exportSplitGroups)),
+    'split/payers.csv': strToU8(csvOfSplitPayers(exportSplitPayers, exportSplitExpenses, exportPeople)),
+    'split/shares.csv': strToU8(csvOfSplitShares(exportSplitShares, exportSplitExpenses, exportPeople)),
+    'split/settlements.csv': strToU8(csvOfSplitSettlements(exportSplitSettlements, exportSplitGroups, exportPeople)),
+    'lend/ledgers.csv': strToU8(csvOfLendLedgers(exportLendLedgers, exportPeople)),
+    'lend/entries.csv': strToU8(csvOfLendEntries(exportLendEntries, exportLendLedgers, exportPeople)),
   };
 
   if (opts.includeOverview !== false) {
     inputs['overview/people-summary.csv'] = strToU8(
       buildPeopleSummary({
-        people,
-        ledgers: lendLedgers,
-        lendEntries,
-        groups: splitGroups,
-        members: splitMembers,
-        expenses: splitExpenses,
-        payers: splitPayers,
-        shares: splitShares,
-        settlements: splitSettlements,
+        people: exportPeople,
+        ledgers: exportLendLedgers,
+        lendEntries: exportLendEntries,
+        groups: exportSplitGroups,
+        members: exportSplitMembers,
+        expenses: exportSplitExpenses,
+        payers: exportSplitPayers,
+        shares: exportSplitShares,
+        settlements: exportSplitSettlements,
       }),
     );
     inputs['overview/monthly-summary.csv'] = strToU8(
-      buildMonthlySummary(trackTx, defaultCurrency),
+      buildMonthlySummary(exportTrackTx, defaultCurrency),
     );
   }
 

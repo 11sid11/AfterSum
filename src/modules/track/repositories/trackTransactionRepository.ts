@@ -19,20 +19,18 @@ import {
 } from '@db/repositories/base';
 import {
   TrackTransactionInputSchema,
-  cleanTransactionInput,
   type TrackTransactionInput,
 } from '../domain/validation';
 import { monthDateRange } from '@shared/dates';
 import type { TrackTransaction } from '@db/schema';
 
 function clean(input: Partial<TrackTransactionInput>): Partial<TrackTransactionInput> {
-  const merged = {
-    ...input,
-    categoryId: input.categoryId || undefined,
-    paymentMethod: input.paymentMethod || undefined,
-    note: input.note || undefined,
-  };
-  return cleanTransactionInput(merged as TrackTransactionInput);
+  const cleaned: Partial<TrackTransactionInput> = { ...input };
+  if (input.title !== undefined) cleaned.title = input.title.trim();
+  if (Object.hasOwn(input, 'categoryId')) cleaned.categoryId = input.categoryId || undefined;
+  if (Object.hasOwn(input, 'paymentMethod')) cleaned.paymentMethod = input.paymentMethod || undefined;
+  if (Object.hasOwn(input, 'note')) cleaned.note = input.note || undefined;
+  return cleaned;
 }
 
 function newestDateFirst(a: TrackTransaction, b: TrackTransaction): number {

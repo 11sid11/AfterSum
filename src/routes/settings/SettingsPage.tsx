@@ -13,7 +13,7 @@ export function SettingsPage() {
   const toast = useToast();
 
   if (!settings) return <Spinner />;
-  const hasFinancialData = !!stats && stats.track + stats.groups + stats.lendLedgers + stats.budgets > 0;
+  const hasFinancialData = !!stats && stats.track + stats.lendEntries + stats.budgets > 0;
 
   const setTheme = (mode: 'system' | 'light' | 'dark') => {
     void settingsRepository.setTheme(mode).catch((error) => {

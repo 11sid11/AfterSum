@@ -4,10 +4,8 @@
  * Owns the Dexie `lendLedgers` table. The Lend module is the
  * ONLY writer of this table.
  *
- * Important: `getOrCreate(personId, currency)` is idempotent
- * — it returns the existing active ledger for the pair, or
- * creates a fresh one. This is the canonical way the UI
- * resolves a ledger to write an entry into.
+ * Lend uses the app's Main currency. Split groups remain free
+ * to use their own independent currencies.
  */
 
 import { getDB } from '@db/database';
@@ -15,10 +13,11 @@ import { runTransaction } from '@db/transaction';
 import {
   repoCreate,
   repoUpdate,
-  repoSoftDelete,
   repoRestore,
   type CreateInput,
 } from '@db/repositories/base';
+import { nowISO } from '@shared/dates';
+import { settingsRepository } from '@shared/settings/repository';
 import { LendLedgerInputSchema, type LendLedgerInput } from '../domain/validation';
 import type { LendLedger, LendEntry } from '@db/schema';
 
@@ -27,6 +26,13 @@ function clean(input: Partial<LendLedgerInput>): Partial<LendLedgerInput> {
     ...input,
     label: input.label || undefined,
   };
+}
+
+async function assertMainCurrency(currency: string): Promise<void> {
+  const settings = await settingsRepository.get();
+  if (currency !== settings.defaultCurrency) {
+    throw new Error(`Lend uses your Main currency (${settings.defaultCurrency}).`);
+  }
 }
 
 export const lendLedgerRepository = {
@@ -52,12 +58,12 @@ export const lendLedgerRepository = {
   },
 
   /**
-   * Get the active ledger for (person, currency), or create
-   * one if it doesn't exist. The lookup and creation share a
-   * write transaction so concurrent callers cannot create two
-   * active ledgers for the same pair.
+   * Get the active Main-currency ledger for a person, or create one.
+   * The lookup and creation share a write transaction so concurrent callers
+   * cannot create two active ledgers for the same pair.
    */
   async getOrCreate(personId: string, currency: string): Promise<LendLedger> {
+    await assertMainCurrency(currency);
     const db = getDB();
     return db.transaction('rw', db.lendLedgers, async () => {
       const existing = await db.lendLedgers
@@ -72,16 +78,23 @@ export const lendLedgerRepository = {
     });
   },
 
-  /** Create a new ledger. */
+  /** Create a new Main-currency ledger. */
   async create(input: LendLedgerInput): Promise<LendLedger> {
     const parsed = LendLedgerInputSchema.parse(input);
+    await assertMainCurrency(parsed.currency);
     const cleaned = clean(parsed);
     return repoCreate<LendLedger>(getDB().lendLedgers, cleaned as CreateInput<LendLedger>);
   },
 
-  /** Update an existing ledger. */
+  /** Update non-financial ledger metadata. Currency changes are not allowed. */
   async update(id: string, patch: Partial<LendLedgerInput>): Promise<LendLedger> {
     const parsed = LendLedgerInputSchema.partial().parse(patch);
+    if (parsed.currency !== undefined) {
+      const current = await this.get(id);
+      if (current && parsed.currency !== current.currency) {
+        throw new Error('Lend ledger currency cannot be changed after creation.');
+      }
+    }
     return repoUpdate<LendLedger>(getDB().lendLedgers, id, clean(parsed));
   },
 
@@ -94,7 +107,11 @@ export const lendLedgerRepository = {
     return this.update(id, { archived: true });
   },
 
-  /** Soft-delete a ledger and all currently-active entries atomically. */
+  /**
+   * Soft-delete a ledger and all entries that are active at that moment.
+   * One deletion timestamp is shared by the cascade so Undo can restore only
+   * rows deleted by this operation, never entries the user deleted earlier.
+   */
   async softDelete(id: string): Promise<{ ledgerId: string; entryIds: string[] }> {
     const db = getDB();
     return db.transaction('rw', [db.lendLedgers, db.lendEntries], async () => {
@@ -102,24 +119,38 @@ export const lendLedgerRepository = {
       if (!ledger) return { ledgerId: id, entryIds: [] };
       const entries = await db.lendEntries.where('ledgerId').equals(id).toArray();
       const activeEntries = entries.filter((entry) => !entry.deletedAt);
+      const deletedAt = nowISO();
 
-      await repoSoftDelete(db.lendLedgers, id);
+      await db.lendLedgers.put({
+        ...ledger,
+        deletedAt,
+        updatedAt: deletedAt,
+        revision: ledger.revision + 1,
+      });
       for (const entry of activeEntries) {
-        await repoSoftDelete(db.lendEntries, entry.id);
+        await db.lendEntries.put({
+          ...entry,
+          deletedAt,
+          updatedAt: deletedAt,
+          revision: entry.revision + 1,
+        });
       }
       return { ledgerId: id, entryIds: activeEntries.map((entry) => entry.id) };
     });
   },
 
-  /** Restore a soft-deleted ledger and its soft-deleted entries atomically. */
+  /** Restore a soft-deleted ledger and only entries deleted with that ledger. */
   async restore(id: string): Promise<{ ledgerId: string; entryIds: string[] }> {
     const db = getDB();
     return db.transaction('rw', [db.lendLedgers, db.lendEntries], async () => {
       const ledger = await db.lendLedgers.get(id);
       if (!ledger) return { ledgerId: id, entryIds: [] };
-      const entries = (await db.lendEntries.where('ledgerId').equals(id).toArray()).filter(
-        (entry) => !!entry.deletedAt,
-      );
+      const deletedAt = ledger.deletedAt;
+      const entries = deletedAt
+        ? (await db.lendEntries.where('ledgerId').equals(id).toArray()).filter(
+            (entry) => entry.deletedAt === deletedAt,
+          )
+        : [];
 
       await repoRestore(db.lendLedgers, id);
       for (const entry of entries) {

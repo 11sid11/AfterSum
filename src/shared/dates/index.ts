@@ -27,6 +27,26 @@ export function toDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** True when a value is a real calendar date in canonical YYYY-MM-DD form. */
+export function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day || month < 1 || month > 12) return false;
+  const probe = new Date(year, month - 1, day);
+  return (
+    probe.getFullYear() === year &&
+    probe.getMonth() === month - 1 &&
+    probe.getDate() === day
+  );
+}
+
+/** True when a value is a canonical YYYY-MM month key. */
+export function isValidMonthKey(value: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(value)) return false;
+  const month = Number(value.slice(5, 7));
+  return month >= 1 && month <= 12;
+}
+
 /** Parse a YYYY-MM-DD string as a Date in local timezone. */
 export function fromDateOnly(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
@@ -87,9 +107,9 @@ export function nextDays(count: number, from: Date = new Date()): string[] {
   return out;
 }
 
-/** Format an ISO timestamp for human display in the user's locale. */
+/** Format a persisted date/date-time for human display in the user's locale. */
 export function formatHumanDate(iso: string): string {
-  const d = new Date(iso);
+  const d = isValidDateOnly(iso) ? fromDateOnly(iso) : new Date(iso);
   return d.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',

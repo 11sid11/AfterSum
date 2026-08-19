@@ -8,14 +8,14 @@ import { useAppSettings } from '@shared/settings/useSettings';
 import { useTrackMonthlySummary } from '@modules/track/queries';
 import { trackBudgetRepository } from '@modules/track/repositories/trackBudgetRepository';
 import { getDB } from '@db/database';
-import { toMonthKey, todayDateOnly } from '@shared/dates';
+import { isValidMonthKey, toMonthKey } from '@shared/dates';
 import { TrackBudgetInputSchema } from '@modules/track/domain/validation';
 import type { TrackBudget } from '@db/schema';
 
 export function TrackBudgetPage() {
   const search = useSearch({ strict: false }) as { month?: string };
   const settings = useAppSettings();
-  const requested = search.month && /^\d{4}-\d{2}$/.test(search.month) ? search.month : toMonthKey();
+  const requested = search.month && isValidMonthKey(search.month) ? search.month : toMonthKey();
   const budget = useLiveQuery(async () => {
     const rows = await getDB().trackBudgets.toArray();
     return rows.find((row) => !row.deletedAt && row.month === requested) ?? null;
@@ -72,7 +72,7 @@ function TrackBudgetForm({ month, budget, currency, hideAmounts }: { month: stri
     }
   };
 
-  const isCurrent = month === toMonthKey(new Date(todayDateOnly()));
+  const isCurrent = month === toMonthKey();
 
   return (
     <div className="space-y-4">

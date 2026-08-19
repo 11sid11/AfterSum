@@ -35,4 +35,30 @@ describe('Lend ledger cascade atomicity', () => {
     expect((await db.lendLedgers.get(ledger.id))?.deletedAt).toBeUndefined();
     expect((await db.lendEntries.get(entry.id))?.deletedAt).toBeUndefined();
   });
+
+  it('does not resurrect an entry deleted before the ledger was deleted', async () => {
+    const person = await personRepository.create({ name: 'Rahul' });
+    const ledger = await lendLedgerRepository.create({ personId: person.id, currency: 'INR' });
+    const activeEntry = await lendEntryRepository.create({
+      ledgerId: ledger.id,
+      type: 'lent',
+      amountMinor: 5000,
+      date: '2026-08-18',
+    });
+    const previouslyDeleted = await lendEntryRepository.create({
+      ledgerId: ledger.id,
+      type: 'lent',
+      amountMinor: 1000,
+      date: '2026-08-17',
+    });
+
+    await lendEntryRepository.softDelete(previouslyDeleted.id);
+    const originalDeletedAt = (await getDB().lendEntries.get(previouslyDeleted.id))?.deletedAt;
+
+    await lendLedgerRepository.softDelete(ledger.id);
+    await lendLedgerRepository.restore(ledger.id);
+
+    expect((await getDB().lendEntries.get(activeEntry.id))?.deletedAt).toBeUndefined();
+    expect((await getDB().lendEntries.get(previouslyDeleted.id))?.deletedAt).toBe(originalDeletedAt);
+  });
 });

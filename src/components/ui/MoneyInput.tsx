@@ -24,7 +24,7 @@ interface MoneyInputProps {
 }
 
 function editableValue(value: number | undefined, currency: CurrencyCode): string {
-  if (value === undefined) return '';
+  if (value === undefined || !Number.isFinite(value)) return '';
   const decimal = minorToDecimal(value, currency);
   if (value === 0) return '';
   return String(decimal);
@@ -64,7 +64,10 @@ export function MoneyInput({
       lastExternal.current = `${currency}:${parsed.amountMinor}`;
       onChange(parsed.amountMinor);
     } catch {
-      // Intermediate values such as "12." remain editable.
+      // Never keep a previously valid amount behind invalid visible text.
+      // Zero is already rejected by every financial form that requires money.
+      lastExternal.current = `${currency}:0`;
+      onChange(0);
     }
   };
 

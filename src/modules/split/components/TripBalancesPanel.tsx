@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowRight, CheckCircle2, Share2, WalletCards } from 'lucide-react';
 import { Button, Card, Money, useCelebration, useToast } from '@components/ui';
@@ -22,6 +22,10 @@ interface TripBalancesPanelProps {
   hideAmounts: boolean;
 }
 
+function transferKey(transfer: { fromPersonId: string; toPersonId: string; amountMinor: number }): string {
+  return `${transfer.fromPersonId}:${transfer.toPersonId}:${transfer.amountMinor}`;
+}
+
 export function TripBalancesPanel({
   groupId,
   groupName,
@@ -38,12 +42,19 @@ export function TripBalancesPanel({
   const toast = useToast();
   const { celebrate } = useCelebration();
   const [pendingUndoId, setPendingUndoId] = useState<string | null>(null);
+  const [savingPaymentKey, setSavingPaymentKey] = useState<string | null>(null);
+  const savingPaymentRef = useRef<string | null>(null);
   const personMap = new Map(people.map((person) => [person.id, person]));
   const memberPeople = members
     .map((member) => personMap.get(member.personId))
     .filter((person): person is Person => Boolean(person));
 
   const markPaid = async (transfer: { fromPersonId: string; toPersonId: string; amountMinor: number }) => {
+    const key = transferKey(transfer);
+    if (savingPaymentRef.current) return;
+    savingPaymentRef.current = key;
+    setSavingPaymentKey(key);
+
     try {
       await splitSettlementRepository.create({
         groupId,
@@ -59,6 +70,9 @@ export function TripBalancesPanel({
       celebrate({ kind: closesTrip ? 'settled' : 'added', message: closesTrip ? 'Trip settled' : 'Payment recorded' });
     } catch (error) {
       toast.show(error instanceof Error ? error.message : 'Could not record payment', { variant: 'error' });
+    } finally {
+      savingPaymentRef.current = null;
+      setSavingPaymentKey(null);
     }
   };
 
@@ -126,6 +140,8 @@ export function TripBalancesPanel({
             {transfers.map((transfer, index) => {
               const from = personMap.get(transfer.fromPersonId);
               const to = personMap.get(transfer.toPersonId);
+              const key = transferKey(transfer);
+              const saving = savingPaymentKey === key;
               return (
                 <Card key={`${transfer.fromPersonId}-${transfer.toPersonId}-${index}`} className="surface-lift">
                   <div className="space-y-4">
@@ -149,7 +165,12 @@ export function TripBalancesPanel({
                       <Button variant="secondary" onClick={() => void shareTransfer(transfer)} aria-label="Share payment details">
                         <Share2 size={15} /> Share
                       </Button>
-                      <Button onClick={() => void markPaid(transfer)}>Mark paid</Button>
+                      <Button
+                        onClick={() => void markPaid(transfer)}
+                        disabled={savingPaymentKey !== null}
+                      >
+                        {saving ? 'Recording…' : 'Mark paid'}
+                      </Button>
                     </div>
                   </div>
                 </Card>

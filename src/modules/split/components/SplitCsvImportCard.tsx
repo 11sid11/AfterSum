@@ -1,33 +1,54 @@
 import { useRef, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { Button, Card, CardHeader, CardTitle, useToast } from '@components/ui';
+import { useSelf } from '@shared/people/queries';
+import { personNameKey } from '@shared/people/domain';
 import {
   executeSplitCsvImport,
   previewSplitCsv,
   type SplitCsvPreview,
 } from '../services/importCsv';
 
+const SELF_NOT_LISTED = '__self_not_listed__';
+
 export function SplitCsvImportCard({ groupId, currency }: { groupId: string; currency: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const self = useSelf();
   const [preview, setPreview] = useState<SplitCsvPreview>();
   const [filename, setFilename] = useState('');
+  const [selfParticipant, setSelfParticipant] = useState('');
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+
+  const clearPreview = () => {
+    setPreview(undefined);
+    setFilename('');
+    setSelfParticipant('');
+  };
 
   const readFile = async (file: File) => {
     try {
       const next = previewSplitCsv(await file.text(), currency);
+      const matchingSelf =
+        next.kind === 'splitwise' && self
+          ? next.participantNames.find((name) => personNameKey(name) === personNameKey(self.name))
+          : undefined;
       setPreview(next);
       setFilename(file.name);
+      setSelfParticipant(matchingSelf ?? '');
     } catch (error) {
-      setPreview(undefined);
-      setFilename('');
+      clearPreview();
       toast.show(error instanceof Error ? error.message : 'Could not read CSV', { variant: 'error' });
     }
   };
 
   const runImport = async () => {
     if (!preview) return;
+    if (preview.kind === 'splitwise' && !selfParticipant) {
+      toast.show('Choose which Splitwise participant is you before importing.', { variant: 'error' });
+      return;
+    }
+
     const confirmed = window.confirm(
       `Import ${preview.rows.length} expense${preview.rows.length === 1 ? '' : 's'} into this trip? Existing expenses will not be changed.`,
     );
@@ -35,7 +56,14 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
 
     setBusy(true);
     try {
-      const result = await executeSplitCsvImport(groupId, preview);
+      const result = await executeSplitCsvImport(groupId, preview, {
+        selfParticipantName:
+          preview.kind !== 'splitwise'
+            ? undefined
+            : selfParticipant === SELF_NOT_LISTED
+              ? null
+              : selfParticipant,
+      });
       const duplicateNote = result.skippedDuplicates
         ? ` ${result.skippedDuplicates} already-imported ${result.skippedDuplicates === 1 ? 'row was' : 'rows were'} skipped.`
         : '';
@@ -43,8 +71,7 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
         `Imported ${result.imported} expense${result.imported === 1 ? '' : 's'}${result.peopleAdded ? ` and added ${result.peopleAdded} new ${result.peopleAdded === 1 ? 'person' : 'people'}` : ''}.${duplicateNote}`,
         { variant: 'success' },
       );
-      setPreview(undefined);
-      setFilename('');
+      clearPreview();
       if (inputRef.current) inputRef.current.value = '';
     } catch (error) {
       toast.show(error instanceof Error ? error.message : 'Import failed', { variant: 'error' });
@@ -91,6 +118,25 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
               People found: {preview.participantNames.join(', ')}. Existing matching names are reused.
             </p>
           )}
+          {preview.kind === 'splitwise' && (
+            <div className="space-y-1.5">
+              <label className="label" htmlFor="splitwise-self">Which Splitwise person is you?</label>
+              <select
+                id="splitwise-self"
+                className="input"
+                value={selfParticipant}
+                onChange={(event) => setSelfParticipant(event.target.value)}
+                disabled={busy}
+              >
+                <option value="">Choose…</option>
+                {preview.participantNames.map((name) => <option key={name} value={name}>{name}</option>)}
+                <option value={SELF_NOT_LISTED}>I'm not listed in this file</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                This prevents your Splitwise rows from being imported as a second person.
+              </p>
+            </div>
+          )}
           {preview.warnings.length > 0 && (
             <details className="text-xs text-amber-700 dark:text-amber-300">
               <summary className="cursor-pointer font-medium">{preview.warnings.length} import note{preview.warnings.length === 1 ? '' : 's'}</summary>
@@ -104,8 +150,13 @@ export function SplitCsvImportCard({ groupId, currency }: { groupId: string; cur
             Re-importing the same CSV is safe: rows AfterSum already imported from that file are skipped.
           </p>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" onClick={() => { setPreview(undefined); setFilename(''); }}>Choose another</Button>
-            <Button disabled={busy} onClick={() => void runImport()}>{busy ? 'Importing…' : `Import ${preview.rows.length}`}</Button>
+            <Button variant="ghost" onClick={clearPreview} disabled={busy}>Choose another</Button>
+            <Button
+              disabled={busy || (preview.kind === 'splitwise' && !selfParticipant)}
+              onClick={() => void runImport()}
+            >
+              {busy ? 'Importing…' : `Import ${preview.rows.length}`}
+            </Button>
           </div>
         </div>
       )}

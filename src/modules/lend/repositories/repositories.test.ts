@@ -20,36 +20,31 @@ import { ledgerBalance, personBalanceFromLedgers } from '../domain/balance';
 import { SELF_PERSON_ID } from '@db/seed';
 
 async function seedPerson(name: string) {
-  const p = await personRepository.create({ name });
-  return p;
+  return personRepository.create({ name });
 }
 
 beforeEach(async () => {
   await wipeDB();
   freshDB();
-  // The repositories touch markDirty which reads the sync
-  // metadata row; ensure the settings exist so test runs
-  // are realistic.
   await settingsRepository.get();
 });
 
 describe('LendLedgerRepository', () => {
   it('list returns active ledgers sorted by createdAt', async () => {
-    const person = await seedPerson('Rahul');
-    const a = await lendLedgerRepository.create({ personId: person.id, currency: 'INR' });
-    const b = await lendLedgerRepository.create({ personId: person.id, currency: 'USD' });
+    const rahul = await seedPerson('Rahul');
+    const priya = await seedPerson('Priya');
+    const a = await lendLedgerRepository.create({ personId: rahul.id, currency: 'INR' });
+    const b = await lendLedgerRepository.create({ personId: priya.id, currency: 'INR' });
     const list = await lendLedgerRepository.list();
-    expect(list.map((l) => l.id)).toEqual([a.id, b.id]);
+    expect(list.map((ledger) => ledger.id)).toEqual([a.id, b.id]);
   });
 
-  it('getOrCreate is idempotent for (person, currency)', async () => {
+  it('getOrCreate is idempotent and rejects non-Main currencies', async () => {
     const person = await seedPerson('Rahul');
     const first = await lendLedgerRepository.getOrCreate(person.id, 'INR');
     const second = await lendLedgerRepository.getOrCreate(person.id, 'INR');
     expect(first.id).toBe(second.id);
-    // Different currency -> different ledger.
-    const usd = await lendLedgerRepository.getOrCreate(person.id, 'USD');
-    expect(usd.id).not.toBe(first.id);
+    await expect(lendLedgerRepository.getOrCreate(person.id, 'USD')).rejects.toThrow(/Main currency/);
   });
 
   it('softDelete then restore round-trips', async () => {
@@ -134,6 +129,37 @@ describe('LendEntryRepository', () => {
     ).rejects.toThrow();
   });
 
+  it('rejects an update that would leave a negative non-adjustment amount', async () => {
+    const person = await seedPerson('Rahul');
+    const ledger = await lendLedgerRepository.getOrCreate(person.id, 'INR');
+    const entry = await lendEntryRepository.create({
+      ledgerId: ledger.id,
+      type: 'adjustment',
+      amountMinor: -5000,
+      date: '2024-01-01',
+    });
+
+    await expect(lendEntryRepository.update(entry.id, { type: 'lent' })).rejects.toThrow(/positive/);
+    expect((await lendEntryRepository.get(entry.id))?.type).toBe('adjustment');
+  });
+
+  it('can explicitly clear note and due date', async () => {
+    const person = await seedPerson('Rahul');
+    const ledger = await lendLedgerRepository.getOrCreate(person.id, 'INR');
+    const entry = await lendEntryRepository.create({
+      ledgerId: ledger.id,
+      type: 'lent',
+      amountMinor: 5000,
+      date: '2024-01-01',
+      dueDate: '2024-02-01',
+      note: 'Reminder',
+    });
+
+    const updated = await lendEntryRepository.update(entry.id, { dueDate: '', note: '' });
+    expect(updated.dueDate).toBeUndefined();
+    expect(updated.note).toBeUndefined();
+  });
+
   it('softDelete then restore round-trips an entry', async () => {
     const person = await seedPerson('Rahul');
     const ledger = await lendLedgerRepository.getOrCreate(person.id, 'INR');
@@ -154,11 +180,9 @@ describe('LendEntryRepository', () => {
 
 describe('Critical isolation: Split settlement must not alter Lend (work.md §85)', () => {
   it('keeps Lend balances intact after a Split settlement', async () => {
-    // Seed two real people and a Self person.
     const rahul = await personRepository.create({ name: 'Rahul' });
     const me = await personRepository.ensureSelf();
 
-    // Lend: Rahul owes me 5,000.
     const lendLedger = await lendLedgerRepository.getOrCreate(rahul.id, 'INR');
     await lendEntryRepository.create({
       ledgerId: lendLedger.id,
@@ -167,7 +191,6 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
       date: '2024-01-01',
     });
 
-    // Split: Goa group where Rahul owes me 1,200.
     const db = getDB();
     const goaId = 'goa-group';
     const now = new Date().toISOString();
@@ -180,7 +203,6 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
       updatedAt: now,
       revision: 1,
     });
-    // Make sure both people are in the group.
     for (const pid of [me.id, rahul.id]) {
       await db.splitGroupMembers.put({
         id: `m-${pid}-${goaId}`,
@@ -193,12 +215,6 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
         revision: 1,
       });
     }
-    // Goa expense: I paid 1,200; shared equally between me and Rahul.
-    // Net: Rahul owes me 600 (Goa shows +600, NOT +1,200).
-    // The spec's "+1,200" is the *gross share*, but the
-    // balance after settlement is what we measure. We
-    // verify that AFTER a settlement, the Lend balance
-    // remains +5,000 regardless of what happens in Split.
     await db.splitExpenses.put({
       id: 'goa-exp-1',
       groupId: goaId,
@@ -242,15 +258,13 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
         revision: 1,
       },
     ]);
-    void SELF_PERSON_ID; // ensureSelf uses this internally
+    void SELF_PERSON_ID;
 
-    // Snapshot Lend state.
     const lendLedgers = await lendLedgerRepository.list();
     const lendEntries = await lendEntryRepository.list();
     const lendBalanceBefore = personBalanceFromLedgers(lendLedgers, lendEntries, rahul.id);
     expect(lendBalanceBefore).toBe(500000);
 
-    // Perform a Split settlement: Rahul pays me 600.
     await db.splitSettlements.put({
       id: 'settle-1',
       groupId: goaId,
@@ -264,7 +278,6 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
       revision: 1,
     });
 
-    // Snapshot Lend state again.
     const lendLedgersAfter = await lendLedgerRepository.list();
     const lendEntriesAfter = await lendEntryRepository.list();
     const lendBalanceAfter = personBalanceFromLedgers(
@@ -273,14 +286,10 @@ describe('Critical isolation: Split settlement must not alter Lend (work.md §85
       rahul.id,
     );
     expect(lendBalanceAfter).toBe(500000);
-
-    // The lend ledger's balance should be unchanged.
     expect(ledgerBalance(lendEntriesAfter)).toBe(500000);
 
-    // The Split settlement must be a Split record, NOT a Lend record.
     const splitSettlements = await db.splitSettlements.toArray();
     expect(splitSettlements).toHaveLength(1);
-    // And there should be no lend entry created from the settlement.
     const lendSettlementLike = lendEntriesAfter.filter(
       (e) => e.note?.toLowerCase().includes('settle') ?? false,
     );

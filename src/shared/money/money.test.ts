@@ -31,9 +31,17 @@ describe('decimalToMinor / minorToDecimal', () => {
 
   it('handles JPY (zero decimal)', () => {
     expect(decimalToMinor('100', 'JPY')).toBe(100);
-    // JPY has 0 decimal places — fraction is discarded (truncated).
-    expect(decimalToMinor('100.5', 'JPY')).toBe(100);
+    expect(() => decimalToMinor('100.5', 'JPY')).toThrow(/fractional digit/);
     expect(currencyDecimals('JPY')).toBe(0);
+  });
+
+  it('rejects excess precision instead of truncating user input', () => {
+    expect(() => decimalToMinor('12.999', 'USD')).toThrow(/fractional digit/);
+    expect(() => decimalToMinor('1.2345', 'KWD')).toThrow(/fractional digit/);
+  });
+
+  it('accepts a trailing decimal point while a user is typing', () => {
+    expect(decimalToMinor('12.', 'USD')).toBe(1200);
   });
 
   it('throws on invalid input', () => {
@@ -64,10 +72,15 @@ describe('formatMoney', () => {
 });
 
 describe('parseMoney', () => {
-  it('strips thousands separators and currency symbols', () => {
+  it('accepts thousands separators and leading currency labels', () => {
     expect(parseMoney('₹1,250.50', 'INR').amountMinor).toBe(125050);
     expect(parseMoney('1,250.50', 'USD').amountMinor).toBe(125050);
-    expect(parseMoney('  99.99 ', 'EUR').amountMinor).toBe(9999);
+    expect(parseMoney('USD 99.99', 'USD').amountMinor).toBe(9999);
+  });
+
+  it('rejects malformed numeric text instead of stripping internal characters', () => {
+    expect(() => parseMoney('1e3', 'USD')).toThrow();
+    expect(() => parseMoney('12abc34', 'USD')).toThrow();
   });
 });
 
