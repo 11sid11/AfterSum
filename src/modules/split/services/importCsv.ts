@@ -1,6 +1,7 @@
 import { getDB } from '@db/database';
 import type { SplitExpenseCategory } from '@db/schema';
 import { decimalToMinor } from '@shared/money';
+import { isValidDateOnly, toDateOnly } from '@shared/dates';
 import { personRepository } from '@shared/people/repository';
 import { splitExpenseRepository } from '../repositories/splitExpenseRepository';
 import { splitGroupMemberRepository } from '../repositories/splitGroupMemberRepository';
@@ -31,6 +32,11 @@ export interface SplitCsvImportResult {
   imported: number;
   peopleAdded: number;
   skippedDuplicates: number;
+}
+
+export interface SplitCsvImportOptions {
+  /** CSV participant explicitly mapped to the app's self person. Null means self is not listed. */
+  selfParticipantName?: string | null;
 }
 
 /** Parse a CSV locally. Nothing is written until executeSplitCsvImport is called. */
@@ -151,7 +157,7 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
 }
 
 /**
- * Import a validated preview into one trip.
+ * Import a validated preview into one trip atomically.
  * Splitwise paid/owed columns are preserved as exact payer/share values.
  * Generic CSV rows use the trip's saved split (or You + everyone equally).
  * Rows imported previously from the same CSV position/content are skipped.
@@ -159,106 +165,159 @@ export function previewSplitCsv(text: string, groupCurrency: string): SplitCsvPr
 export async function executeSplitCsvImport(
   groupId: string,
   preview: SplitCsvPreview,
+  options: SplitCsvImportOptions = {},
 ): Promise<SplitCsvImportResult> {
+  validatePreview(preview);
   const db = getDB();
-  const group = await db.splitGroups.get(groupId);
-  if (!group || group.deletedAt || group.archived) throw new Error('Trip is not available for import.');
 
-  const existingExpenses = await db.splitExpenses.where('groupId').equals(groupId).toArray();
-  const existingKeys = new Set(existingExpenses.map((expense) => expense.importSourceKey).filter(Boolean));
-  const pendingRows = preview.rows.filter((row) => !existingKeys.has(row.sourceKey));
-  const skippedDuplicates = preview.rows.length - pendingRows.length;
-  if (pendingRows.length === 0) return { imported: 0, peopleAdded: 0, skippedDuplicates };
+  return db.transaction(
+    'rw',
+    [
+      db.people,
+      db.splitGroups,
+      db.splitGroupMembers,
+      db.splitExpenses,
+      db.splitPayers,
+      db.splitShares,
+    ],
+    async () => {
+      const group = await db.splitGroups.get(groupId);
+      if (!group || group.deletedAt || group.archived) throw new Error('Trip is not available for import.');
 
-  const people = (await db.people.toArray()).filter((person) => !person.deletedAt);
-  const self = people.find((person) => person.isSelf);
-  if (!self) throw new Error('Your profile is missing.');
+      const existingExpenses = await db.splitExpenses.where('groupId').equals(groupId).toArray();
+      const existingKeys = new Set(existingExpenses.map((expense) => expense.importSourceKey).filter(Boolean));
+      const pendingRows = preview.rows.filter((row) => !existingKeys.has(row.sourceKey));
+      const skippedDuplicates = preview.rows.length - pendingRows.length;
+      if (pendingRows.length === 0) return { imported: 0, peopleAdded: 0, skippedDuplicates };
 
-  const peopleByName = new Map(people.map((person) => [normalizeName(person.name), person]));
-  let peopleAdded = 0;
+      const people = (await db.people.toArray()).filter((person) => !person.deletedAt);
+      const self = people.find((person) => person.isSelf);
+      if (!self) throw new Error('Your profile is missing.');
 
-  const namesNeeded = new Set<string>();
-  for (const row of pendingRows) {
-    for (const name of Object.keys(row.payerAmountsByName ?? {})) namesNeeded.add(name);
-    for (const name of Object.keys(row.shareAmountsByName ?? {})) namesNeeded.add(name);
-  }
+      const peopleByName = new Map(people.map((person) => [normalizeName(person.name), person]));
+      const selfParticipantName = resolveSelfParticipantName(preview, self.name, options.selfParticipantName);
+      if (selfParticipantName) {
+        peopleByName.set(normalizeName(selfParticipantName), self);
+      }
+      let peopleAdded = 0;
 
-  for (const name of namesNeeded) {
-    const key = normalizeName(name);
-    if (peopleByName.has(key)) continue;
-    const person = await personRepository.create({ name: name.trim() });
-    peopleByName.set(key, person);
-    peopleAdded += 1;
-  }
+      const namesNeeded = new Set<string>();
+      for (const row of pendingRows) {
+        for (const name of Object.keys(row.payerAmountsByName ?? {})) namesNeeded.add(name);
+        for (const name of Object.keys(row.shareAmountsByName ?? {})) namesNeeded.add(name);
+      }
 
-  for (const name of namesNeeded) {
-    const person = peopleByName.get(normalizeName(name));
-    if (person) await splitGroupMemberRepository.getOrCreate(groupId, person.id);
-  }
+      for (const name of namesNeeded) {
+        const key = normalizeName(name);
+        if (peopleByName.has(key)) continue;
+        const person = await personRepository.create({ name: name.trim() });
+        peopleByName.set(key, person);
+        peopleAdded += 1;
+      }
 
-  const members = await db.splitGroupMembers.where('groupId').equals(groupId).toArray();
-  const activePersonIds = members
-    .filter((member) => !member.deletedAt && member.active)
-    .map((member) => member.personId);
-  const fallback = resolveTripDefaultSplit({
-    saved: group.defaultSplit,
-    activePersonIds,
-    preferredPayerId: self.id,
-  });
-  if (!fallback.payerPersonId || fallback.participantIds.length === 0) {
-    throw new Error('Add at least one participant before importing expenses.');
-  }
-
-  let imported = 0;
-  for (const row of pendingRows) {
-    if (preview.kind === 'splitwise' && row.payerAmountsByName && row.shareAmountsByName) {
-      const payers = Object.entries(row.payerAmountsByName).map(([name, amountMinor]) => {
+      for (const name of namesNeeded) {
         const person = peopleByName.get(normalizeName(name));
-        if (!person) throw new Error(`Could not resolve payer ${name}.`);
-        return { personId: person.id, amountMinor };
+        if (person) await splitGroupMemberRepository.getOrCreate(groupId, person.id);
+      }
+
+      const members = await db.splitGroupMembers.where('groupId').equals(groupId).toArray();
+      const activePersonIds = members
+        .filter((member) => !member.deletedAt && member.active)
+        .map((member) => member.personId);
+      const fallback = resolveTripDefaultSplit({
+        saved: group.defaultSplit,
+        activePersonIds,
+        preferredPayerId: self.id,
       });
-      const shareEntries = Object.entries(row.shareAmountsByName).map(([name, amountMinor]) => {
-        const person = peopleByName.get(normalizeName(name));
-        if (!person) throw new Error(`Could not resolve participant ${name}.`);
-        return [person.id, amountMinor] as const;
-      });
-      const participantIds = shareEntries.map(([personId]) => personId);
-      await splitExpenseRepository.createAtomic({
-        groupId,
-        title: row.title,
-        amountMinor: row.amountMinor,
-        currency: group.currency,
-        date: row.date,
-        splitMethod: 'exact',
-        category: row.category,
-        payers,
-        participantIds,
-        allocation: { method: 'exact', amountsByPersonId: Object.fromEntries(shareEntries) },
-        importSourceKey: row.sourceKey,
-      });
-    } else {
-      await splitExpenseRepository.createAtomic({
-        groupId,
-        title: row.title,
-        amountMinor: row.amountMinor,
-        currency: group.currency,
-        date: row.date,
-        splitMethod: fallback.splitMethod,
-        category: row.category,
-        payers: [{ personId: fallback.payerPersonId, amountMinor: row.amountMinor }],
-        participantIds: fallback.participantIds,
-        allocation: allocationSnapshotToInput(
-          fallback.splitMethod,
-          fallback.participantIds,
-          fallback.allocation,
-        ),
-        importSourceKey: row.sourceKey,
-      });
+      if (!fallback.payerPersonId || fallback.participantIds.length === 0) {
+        throw new Error('Add at least one participant before importing expenses.');
+      }
+
+      let imported = 0;
+      for (const row of pendingRows) {
+        if (preview.kind === 'splitwise' && row.payerAmountsByName && row.shareAmountsByName) {
+          const payers = Object.entries(row.payerAmountsByName).map(([name, amountMinor]) => {
+            const person = peopleByName.get(normalizeName(name));
+            if (!person) throw new Error(`Could not resolve payer ${name}.`);
+            return { personId: person.id, amountMinor };
+          });
+          const shareEntries = Object.entries(row.shareAmountsByName).map(([name, amountMinor]) => {
+            const person = peopleByName.get(normalizeName(name));
+            if (!person) throw new Error(`Could not resolve participant ${name}.`);
+            return [person.id, amountMinor] as const;
+          });
+          const participantIds = shareEntries.map(([personId]) => personId);
+          await splitExpenseRepository.createAtomic({
+            groupId,
+            title: row.title,
+            amountMinor: row.amountMinor,
+            currency: group.currency,
+            date: row.date,
+            splitMethod: 'exact',
+            category: row.category,
+            payers,
+            participantIds,
+            allocation: { method: 'exact', amountsByPersonId: Object.fromEntries(shareEntries) },
+            importSourceKey: row.sourceKey,
+          });
+        } else {
+          await splitExpenseRepository.createAtomic({
+            groupId,
+            title: row.title,
+            amountMinor: row.amountMinor,
+            currency: group.currency,
+            date: row.date,
+            splitMethod: fallback.splitMethod,
+            category: row.category,
+            payers: [{ personId: fallback.payerPersonId, amountMinor: row.amountMinor }],
+            participantIds: fallback.participantIds,
+            allocation: allocationSnapshotToInput(
+              fallback.splitMethod,
+              fallback.participantIds,
+              fallback.allocation,
+            ),
+            importSourceKey: row.sourceKey,
+          });
+        }
+        imported += 1;
+      }
+
+      return { imported, peopleAdded, skippedDuplicates };
+    },
+  );
+}
+
+function validatePreview(preview: SplitCsvPreview): void {
+  if (preview.rows.length === 0) throw new Error('No importable expenses found.');
+  for (const row of preview.rows) {
+    if (!isValidDateOnly(row.date)) throw new Error(`Row ${row.rowNumber}: invalid date.`);
+    if (!row.title.trim()) throw new Error(`Row ${row.rowNumber}: expense title is required.`);
+    if (!Number.isSafeInteger(row.amountMinor) || row.amountMinor <= 0) {
+      throw new Error(`Row ${row.rowNumber}: invalid amount.`);
     }
-    imported += 1;
+  }
+}
+
+function resolveSelfParticipantName(
+  preview: SplitCsvPreview,
+  selfName: string,
+  selected: string | null | undefined,
+): string | undefined {
+  if (preview.kind !== 'splitwise') return undefined;
+  if (selected === null) return undefined;
+
+  const participants = new Map(
+    preview.participantNames.map((name) => [normalizeName(name), name] as const),
+  );
+  if (selected !== undefined) {
+    const resolved = participants.get(normalizeName(selected));
+    if (!resolved) throw new Error('Choose a Splitwise participant from this file.');
+    return resolved;
   }
 
-  return { imported, peopleAdded, skippedDuplicates };
+  const exactNameMatch = participants.get(normalizeName(selfName));
+  if (exactNameMatch) return exactNameMatch;
+  throw new Error('Choose which Splitwise participant is you before importing.');
 }
 
 function parseCsv(text: string): string[][] {
@@ -329,18 +388,19 @@ function parseOptionalMinor(value: string, currency: string): number {
 
 function normalizeDate(value: string): string | undefined {
   const raw = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (isValidDateOnly(raw)) return raw;
+
   const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
   if (us) {
     const [, month, day, year] = us;
-    return `${year}-${month!.padStart(2, '0')}-${day!.padStart(2, '0')}`;
+    const candidate = `${year}-${month!.padStart(2, '0')}-${day!.padStart(2, '0')}`;
+    return isValidDateOnly(candidate) ? candidate : undefined;
   }
+
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return undefined;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const candidate = toDateOnly(date);
+  return isValidDateOnly(candidate) ? candidate : undefined;
 }
 
 function mapCategory(value: string): SplitExpenseCategory | undefined {
