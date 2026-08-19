@@ -90,7 +90,6 @@ export function LendPage() {
 
       <AddLendPersonModal
         open={addPersonOpen}
-        currency={currency}
         onClose={() => setAddPersonOpen(false)}
         onOpenPerson={(personId) => navigate({ to: '/lend/person/$personId', params: { personId } })}
       />
