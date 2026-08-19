@@ -54,14 +54,14 @@ export const settingsRepository = {
     const cur = await settingsRepository.get();
     if (currency === cur.defaultCurrency) return cur;
 
-    const [trackTransactions, trackBudgets, splitGroups, lendLedgers] = await Promise.all([
+    // Only amount-bearing Main-currency records lock this setting. Split groups
+    // have their own currency, and empty Lend ledgers contain no financial data.
+    const [trackTransactions, trackBudgets, lendEntries] = await Promise.all([
       db.trackTransactions.count(),
       db.trackBudgets.count(),
-      db.splitGroups.count(),
-      db.lendLedgers.count(),
+      db.lendEntries.count(),
     ]);
-    const hasFinancialData = trackTransactions + trackBudgets + splitGroups + lendLedgers > 0;
-    if (hasFinancialData) {
+    if (trackTransactions + trackBudgets + lendEntries > 0) {
       throw new Error('Default currency is locked after financial data has been recorded.');
     }
     return settingsRepository.update({ defaultCurrency: currency });
