@@ -4,24 +4,19 @@ import { Button, Input, Modal, useToast } from '@components/ui';
 import { usePeople } from '@shared/people/queries';
 import { personNameKey } from '@shared/people/domain';
 import { personRepository } from '@shared/people/repository';
-import type { CurrencyCode } from '@shared/money';
-import { lendLedgerRepository } from '../repositories/lendLedgerRepository';
 
 interface AddLendPersonModalProps {
   open: boolean;
-  currency: CurrencyCode;
   onClose: () => void;
   onOpenPerson: (personId: string) => void;
 }
 
 /**
- * Adds a person to the Lend surface without introducing a second identity
- * system. Existing shared People are reused and an empty Lend ledger is only
- * created when the person does not already have one.
+ * Adds a shared person to the Lend surface without creating financial data.
+ * The person's Lend ledger is created lazily with the first actual entry.
  */
 export function AddLendPersonModal({
   open,
-  currency,
   onClose,
   onOpenPerson,
 }: AddLendPersonModalProps) {
@@ -67,11 +62,6 @@ export function AddLendPersonModal({
     setError(undefined);
     try {
       const person = existingPerson ?? (await personRepository.create({ name: candidate }));
-      const existingLedgers = await lendLedgerRepository.listForPerson(person.id);
-      if (existingLedgers.length === 0) {
-        await lendLedgerRepository.getOrCreate(person.id, currency);
-      }
-
       toast.show(
         existingPerson ? `${person.name} already exists — opening their Lend history` : `${person.name} added`,
         { variant: 'success' },
