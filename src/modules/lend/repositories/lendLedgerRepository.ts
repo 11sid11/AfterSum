@@ -4,10 +4,8 @@
  * Owns the Dexie `lendLedgers` table. The Lend module is the
  * ONLY writer of this table.
  *
- * Important: `getOrCreate(personId, currency)` is idempotent
- * — it returns the existing active ledger for the pair, or
- * creates a fresh one. This is the canonical way the UI
- * resolves a ledger to write an entry into.
+ * Lend uses the app's Main currency. Split groups remain free
+ * to use their own independent currencies.
  */
 
 import { getDB } from '@db/database';
@@ -19,6 +17,7 @@ import {
   type CreateInput,
 } from '@db/repositories/base';
 import { nowISO } from '@shared/dates';
+import { settingsRepository } from '@shared/settings/repository';
 import { LendLedgerInputSchema, type LendLedgerInput } from '../domain/validation';
 import type { LendLedger, LendEntry } from '@db/schema';
 
@@ -27,6 +26,13 @@ function clean(input: Partial<LendLedgerInput>): Partial<LendLedgerInput> {
     ...input,
     label: input.label || undefined,
   };
+}
+
+async function assertMainCurrency(currency: string): Promise<void> {
+  const settings = await settingsRepository.get();
+  if (currency !== settings.defaultCurrency) {
+    throw new Error(`Lend uses your Main currency (${settings.defaultCurrency}).`);
+  }
 }
 
 export const lendLedgerRepository = {
@@ -52,12 +58,12 @@ export const lendLedgerRepository = {
   },
 
   /**
-   * Get the active ledger for (person, currency), or create
-   * one if it doesn't exist. The lookup and creation share a
-   * write transaction so concurrent callers cannot create two
-   * active ledgers for the same pair.
+   * Get the active Main-currency ledger for a person, or create one.
+   * The lookup and creation share a write transaction so concurrent callers
+   * cannot create two active ledgers for the same pair.
    */
   async getOrCreate(personId: string, currency: string): Promise<LendLedger> {
+    await assertMainCurrency(currency);
     const db = getDB();
     return db.transaction('rw', db.lendLedgers, async () => {
       const existing = await db.lendLedgers
@@ -72,16 +78,23 @@ export const lendLedgerRepository = {
     });
   },
 
-  /** Create a new ledger. */
+  /** Create a new Main-currency ledger. */
   async create(input: LendLedgerInput): Promise<LendLedger> {
     const parsed = LendLedgerInputSchema.parse(input);
+    await assertMainCurrency(parsed.currency);
     const cleaned = clean(parsed);
     return repoCreate<LendLedger>(getDB().lendLedgers, cleaned as CreateInput<LendLedger>);
   },
 
-  /** Update an existing ledger. */
+  /** Update non-financial ledger metadata. Currency changes are not allowed. */
   async update(id: string, patch: Partial<LendLedgerInput>): Promise<LendLedger> {
     const parsed = LendLedgerInputSchema.partial().parse(patch);
+    if (parsed.currency !== undefined) {
+      const current = await this.get(id);
+      if (current && parsed.currency !== current.currency) {
+        throw new Error('Lend ledger currency cannot be changed after creation.');
+      }
+    }
     return repoUpdate<LendLedger>(getDB().lendLedgers, id, clean(parsed));
   },
 
