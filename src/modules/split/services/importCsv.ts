@@ -388,7 +388,9 @@ function parseOptionalMinor(value: string, currency: string): number {
 
 function normalizeDate(value: string): string | undefined {
   const raw = value.trim();
-  if (isValidDateOnly(raw)) return raw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return isValidDateOnly(raw) ? raw : undefined;
+  }
 
   const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
   if (us) {
